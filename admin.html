@@ -1,19 +1,11 @@
 <!DOCTYPE html>
 <html lang="nl">
-
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Theme Builder</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<style>
-  body { font-feature-settings: "kern"; }
-  .chat-container { display: flex; flex-direction: column; }
-  .message { animation: slideIn 0.3s ease-out; }
-  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-</style>
 </head>
-
 <body class="bg-black text-white h-screen flex flex-col">
 
 <header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
@@ -26,7 +18,7 @@
   </button>
 </header>
 
-<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4 chat-container">
+<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
   <div class="flex items-center justify-center h-full">
     <div class="text-center">
       <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
@@ -48,7 +40,6 @@
   </button>
 </form>
 
-<!-- SETTINGS MODAL -->
 <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
   <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-md space-y-4">
     <h2 class="font-light text-lg">Settings</h2>
@@ -119,12 +110,12 @@ function saveSettings() {
 function addMessage(role, text) {
   let chat = document.getElementById("chat");
   
-  if (chat.querySelector('div:first-child')?.textContent.includes("AI Website Builder")) {
+  if (chat.children.length === 1 && chat.querySelector('h2')) {
     chat.innerHTML = "";
   }
 
   let messageDiv = document.createElement("div");
-  messageDiv.className = `message ${role === "user" ? "text-right" : "text-left"}`;
+  messageDiv.className = role === "user" ? "text-right" : "text-left";
   
   let bubble = document.createElement("div");
   bubble.className = `inline-block max-w-2xl px-4 py-3 rounded text-sm ${
@@ -137,7 +128,7 @@ function addMessage(role, text) {
   messageDiv.appendChild(bubble);
   chat.appendChild(messageDiv);
   
-  chat.scrollTop = chat.scrollHeight;
+  setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 0);
 }
 
 function utf8ToBase64(str) {
@@ -204,13 +195,7 @@ async function githubSaveFile(path, content, message) {
   return await response.json();
 }
 
-const availableBlocks = [
-  "hero.html",
-  "text-media.html",
-  "media-text.html",
-  "services.html",
-  "contact.html"
-];
+const availableBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html"];
 
 async function loadBlocks() {
   let blocks = {};
@@ -234,7 +219,6 @@ async function askGemini(userText) {
     .join("\n");
 
   let prompt = `Je bent een AI Website Builder.
-
 Je werkt met vaste HTML blocks.
 
 ZEER BELANGRIJKE REGELS:
@@ -243,7 +227,6 @@ ZEER BELANGRIJKE REGELS:
 3. Verander nooit Tailwind classes.
 4. Verander nooit de layout.
 5. Alleen teksten, titels en afbeeldingen aanpassen.
-6. De uiteindelijke pagina moet bestaan uit bestaande blocks.
 
 Beschikbare blocks:
 ${blockNames}
@@ -254,7 +237,7 @@ ${blockContent}
 Maak een website voor:
 ${userText}
 
-Geef alleen JSON terug in dit format:
+Geef alleen JSON terug:
 {
   "blocks": ["hero.html", "text-media.html"],
   "content": {
@@ -275,6 +258,9 @@ Geef alleen JSON terug in dit format:
   );
 
   const data = await response.json();
+  if (!data.candidates || !data.candidates[0]) {
+    throw new Error("Invalid API response");
+  }
   return data.candidates[0].content.parts[0].text;
 }
 
@@ -283,21 +269,21 @@ async function createWebsite(userText) {
     addMessage("ai", "Building website...");
 
     let aiResponse = await askGemini(userText);
-    let jsonText = aiResponse.substring(
-      aiResponse.indexOf("{"),
-      aiResponse.lastIndexOf("}") + 1
-    );
+    let jsonStart = aiResponse.indexOf("{");
+    let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+    
+    if (jsonStart === -1 || jsonEnd === 0) {
+      throw new Error("Could not parse AI response");
+    }
+    
+    let jsonText = aiResponse.substring(jsonStart, jsonEnd);
     let result = JSON.parse(jsonText);
 
     let html = await buildPage(result);
 
-    await githubSaveFile(
-      "index.html",
-      html,
-      "AI generated website"
-    );
+    await githubSaveFile("index.html", html, "AI generated website");
 
-    addMessage("ai", `Website created.<br>Blocks: ${result.blocks.join(", ")}<br><br>index.html saved to GitHub.`);
+    addMessage("ai", `Website created. Blocks: ${result.blocks.join(", ")}`);
   } catch (error) {
     addMessage("ai", "Error: " + error.message);
   }
@@ -312,7 +298,7 @@ async function buildPage(data) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Website</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com"><\/script>
 </head>
 <body>`;
 
