@@ -6,40 +6,38 @@
 <title>AI Theme Builder</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-white h-screen flex flex-col overflow-hidden">
+<body class="bg-black text-white h-screen flex flex-col">
 
-<header class="bg-neutral-900 border-b border-neutral-800 px-4 py-3 flex justify-between items-center flex-shrink-0">
+<header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
   <div>
-    <h1 class="font-light text-sm tracking-wide">AI Theme Builder</h1>
-    <p class="text-xs text-neutral-500">Website Generator</p>
+    <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
+    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
   </div>
-  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-3 py-2 rounded text-xs font-light transition-colors">
+  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
     Settings
   </button>
 </header>
 
-<main id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
+<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
   <div class="flex items-center justify-center h-full">
     <div class="text-center">
-      <h2 class="text-lg font-light text-white mb-1">AI Website Builder</h2>
-      <p class="text-xs text-neutral-500">Geef opdrachten aan de AI</p>
+      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
+      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
     </div>
   </div>
 </main>
 
-<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-4 py-3 flex-shrink-0">
-  <div class="flex gap-2">
-    <input
-      id="user-input"
-      type="text"
-      class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors"
-      placeholder="Geef opdracht..."
-      autocomplete="off"
-    >
-    <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-4 rounded font-light text-xs transition-colors whitespace-nowrap">
-      Send
-    </button>
-  </div>
+<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
+  <input
+    id="user-input"
+    type="text"
+    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
+    placeholder="Geef opdracht..."
+    autocomplete="off"
+  >
+  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
+    Send
+  </button>
 </form>
 
 <!-- SETTINGS MODAL -->
@@ -150,7 +148,7 @@ function addMessage(role, text, type = "text") {
   messageDiv.className = role === "user" ? "text-right" : "text-left";
   
   let bubble = document.createElement("div");
-  bubble.className = `inline-block max-w-xl px-3 py-2 rounded text-sm ${
+  bubble.className = `inline-block max-w-2xl px-4 py-3 rounded text-sm ${
     role === "user" 
       ? "bg-neutral-800 text-white" 
       : type === "plan"
