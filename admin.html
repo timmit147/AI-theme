@@ -6,94 +6,70 @@
 <title>AI Theme Builder</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-black text-white h-screen flex flex-col">
+<body class="bg-black text-white h-screen flex flex-col overflow-hidden">
 
-<header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
+<header class="bg-neutral-900 border-b border-neutral-800 px-4 py-3 flex justify-between items-center flex-shrink-0">
   <div>
-    <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
-    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
+    <h1 class="font-light text-sm tracking-wide">AI Theme Builder</h1>
+    <p class="text-xs text-neutral-500">Website Generator</p>
   </div>
-  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-3 py-2 rounded text-xs font-light transition-colors">
     Settings
   </button>
 </header>
 
-<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
+<main id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
   <div class="flex items-center justify-center h-full">
     <div class="text-center">
-      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
-      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
+      <h2 class="text-lg font-light text-white mb-1">AI Website Builder</h2>
+      <p class="text-xs text-neutral-500">Geef opdrachten aan de AI</p>
     </div>
   </div>
 </main>
 
-<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
-  <input
-    id="user-input"
-    type="text"
-    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
-    placeholder="Geef een opdracht..."
-    autocomplete="off"
-  >
-  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
-    Send
-  </button>
-</form>
-
-<!-- APPROVAL PANEL -->
-<div id="approval-panel" class="hidden bg-neutral-900 border-t border-neutral-800 p-4 space-y-3">
-  <div class="text-sm">
-    <p class="text-neutral-400 mb-3">AI Plan:</p>
-    <div id="plan-text" class="bg-neutral-950 border border-neutral-800 rounded p-3 text-sm text-neutral-100 mb-3"></div>
-  </div>
-  
+<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-4 py-3 flex-shrink-0">
   <div class="flex gap-2">
-    <button onclick="approvePlan()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-      Akkoord
-    </button>
-    <button onclick="rejectPlan()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-      Weigeren
-    </button>
-    <input 
-      id="suggestion-input"
+    <input
+      id="user-input"
       type="text"
-      placeholder="Suggestie..."
-      class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700"
+      class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors"
+      placeholder="Geef opdracht..."
+      autocomplete="off"
     >
-    <button onclick="suggestChange()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-      Suggestie
+    <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-4 rounded font-light text-xs transition-colors whitespace-nowrap">
+      Send
     </button>
   </div>
-</div>
+</form>
 
 <!-- SETTINGS MODAL -->
 <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-md space-y-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-sm space-y-4">
     <h2 class="font-light text-lg">Settings</h2>
 
     <div>
-      <label class="text-xs text-neutral-500 block mb-2">Gemini API Key</label>
+      <label class="text-xs text-neutral-500 block mb-1">Gemini API Key</label>
       <input id="gemini-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
     </div>
 
     <div>
-      <label class="text-xs text-neutral-500 block mb-2">GitHub Token</label>
+      <label class="text-xs text-neutral-500 block mb-1">GitHub Token</label>
       <input id="github-token" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
     </div>
 
     <div>
-      <label class="text-xs text-neutral-500 block mb-2">GitHub User</label>
+      <label class="text-xs text-neutral-500 block mb-1">GitHub User</label>
       <input id="github-user" value="timmit147" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
     </div>
 
     <div>
-      <label class="text-xs text-neutral-500 block mb-2">Repository</label>
+      <label class="text-xs text-neutral-500 block mb-1">Repository</label>
       <input id="github-repo" value="ai-theme" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
     </div>
 
     <div class="flex justify-end gap-2 pt-4">
       <button onclick="toggleSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
-        Cancel
+        Close
       </button>
       <button onclick="saveSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
         Save
@@ -110,14 +86,41 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
   repo: "ai-theme"
 };
 
-let pendingPlan = null;
+let chatHistory = JSON.parse(localStorage.getItem("chat_history")) || [];
+let availableBlocks = [];
+let pendingPlanId = null;
 
-window.onload = function() {
+window.onload = async function() {
   document.getElementById("gemini-key").value = config.geminiKey;
   document.getElementById("github-token").value = config.githubToken;
   document.getElementById("github-user").value = config.githubUser;
   document.getElementById("github-repo").value = config.repo;
+  
+  restoreChat();
+  await loadAvailableBlocks();
 };
+
+async function loadAvailableBlocks() {
+  try {
+    const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/blocks`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${config.githubToken}`,
+        Accept: "application/vnd.github+json"
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      availableBlocks = data
+        .filter(item => item.name.endsWith('.html'))
+        .map(item => item.name);
+      console.log("Available blocks:", availableBlocks);
+    }
+  } catch (e) {
+    console.log("Could not load blocks:", e.message);
+  }
+}
 
 function toggleSettings() {
   let modal = document.getElementById("settings-modal");
@@ -136,7 +139,7 @@ function saveSettings() {
   addMessage("ai", "Settings saved.");
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, type = "text") {
   let chat = document.getElementById("chat");
   
   if (chat.children.length === 1 && chat.querySelector('h2')) {
@@ -147,47 +150,35 @@ function addMessage(role, text) {
   messageDiv.className = role === "user" ? "text-right" : "text-left";
   
   let bubble = document.createElement("div");
-  bubble.className = `inline-block max-w-2xl px-4 py-3 rounded text-sm ${
+  bubble.className = `inline-block max-w-xl px-3 py-2 rounded text-sm ${
     role === "user" 
       ? "bg-neutral-800 text-white" 
+      : type === "plan"
+      ? "bg-neutral-950 border border-neutral-700 text-neutral-100"
       : "bg-neutral-900 border border-neutral-800 text-neutral-100"
   }`;
   bubble.innerHTML = text;
   
+  if (type === "plan") {
+    bubble.id = "plan-" + Date.now();
+    pendingPlanId = bubble.id;
+  }
+  
   messageDiv.appendChild(bubble);
   chat.appendChild(messageDiv);
+  
+  chatHistory.push({ role, text, type });
+  localStorage.setItem("chat_history", JSON.stringify(chatHistory));
   
   setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 0);
 }
 
-function showApprovalPanel(plan) {
-  pendingPlan = plan;
-  document.getElementById("plan-text").textContent = plan;
-  document.getElementById("approval-panel").classList.remove("hidden");
-  document.getElementById("suggestion-input").value = "";
-}
-
-function hideApprovalPanel() {
-  document.getElementById("approval-panel").classList.add("hidden");
-  pendingPlan = null;
-}
-
-function approvePlan() {
-  addMessage("ai", "Plan goedgekeurd. Voert uit...");
-  executePlan(pendingPlan);
-  hideApprovalPanel();
-}
-
-function rejectPlan() {
-  addMessage("ai", "Plan geweigerd.");
-  hideApprovalPanel();
-}
-
-function suggestChange() {
-  let suggestion = document.getElementById("suggestion-input").value.trim();
-  if (suggestion) {
-    addMessage("user", "Suggestie: " + suggestion);
-    hideApprovalPanel();
+function restoreChat() {
+  let chat = document.getElementById("chat");
+  chat.innerHTML = "";
+  
+  for (let msg of chatHistory) {
+    addMessage(msg.role, msg.text, msg.type);
   }
 }
 
@@ -255,7 +246,7 @@ async function githubSaveFile(path, content, message) {
   return await response.json();
 }
 
-async function getBlock(blockName) {
+async function getBlockContent(blockName) {
   try {
     let file = await githubGetFile("blocks/" + blockName);
     return file.content;
@@ -265,38 +256,45 @@ async function getBlock(blockName) {
 }
 
 async function askGemini(userText) {
+  let blocksInfo = availableBlocks.length > 0 
+    ? "Beschikbare blocks: " + availableBlocks.join(", ")
+    : "Geen blocks gevonden";
+
   let prompt = `Je bent een AI Website Builder.
 
-Jouw werk:
+CONTEXT:
+${blocksInfo}
+
+Je taak:
 1. Begrijp wat de gebruiker wil
 2. Maak een PLAN met exact wat je gaat doen
-3. Antwoord ALLEEN met het plan, geen HTML!
+3. Zeg het plan in Nederlands
 
 REGELS:
-- Maak alleen NIEUWE bestanden (bijv: hallo.html)
-- Plaats ALLEEN bestaande blocks in bestanden
-- Verander ALLEEN tekst, nooit layout of Tailwind
-- Als bestand bestaat: update het
-- Als block niet bestaat: zeg dit
+- Maak alleen NIEUWE bestanden (bijv: portfolio.html)
+- Gebruik ALLEEN blocks die ik heb aangegeven
+- Als een block niet bestaat, zeg dat
+- Verander ALLEEN tekst in {{placeholders}}, nooit layout
+- Geen suggesties of vragen, gewoon het plan
 
-USER VRAAG: ${userText}
+USER VRAAG: "${userText}"
 
 ANTWOORD FORMAT (ALLEEN JSON):
 {
-  "plan": "Exact omschrijving van wat ik ga doen",
+  "plan": "Duidelijke Nederlandse omschrijving wat ik ga doen",
   "actions": [
     {
       "type": "create_page",
-      "file": "hallo.html",
-      "blocks": ["hero.html"],
-      "description": "Nieuwe pagina met..."
+      "file": "portfolio.html",
+      "blocks": ["hero.html", "services.html"],
+      "description": "Nieuwe portfolio pagina"
     },
     {
       "type": "replace_text",
-      "file": "hallo.html",
-      "find": "{{hero.title}}",
-      "replace": "Pizza",
-      "description": "Hero titel veranderen naar Pizza"
+      "file": "portfolio.html",
+      "find": "{{title}}",
+      "replace": "Mijn Portfolio",
+      "description": "Titel aanpassen"
     }
   ]
 }`;
@@ -313,8 +311,8 @@ ANTWOORD FORMAT (ALLEEN JSON):
   );
 
   const data = await response.json();
-  if (!data.candidates || !data.candidates[0]) {
-    throw new Error("Invalid API response");
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error("Invalid Gemini response");
   }
   return data.candidates[0].content.parts[0].text;
 }
@@ -324,12 +322,14 @@ async function executePlan(planText) {
     let jsonStart = planText.indexOf("{");
     let jsonEnd = planText.lastIndexOf("}") + 1;
     
-    if (jsonStart === -1) {
-      throw new Error("No valid plan found");
+    if (jsonStart === -1 || jsonEnd <= jsonStart) {
+      throw new Error("No valid plan found in response");
     }
     
     let jsonText = planText.substring(jsonStart, jsonEnd);
     let plan = JSON.parse(jsonText);
+
+    addMessage("ai", "Voert plan uit...");
 
     for (let action of plan.actions) {
       if (action.type === "create_page") {
@@ -344,29 +344,33 @@ async function executePlan(planText) {
 <body>`;
 
         for (let blockName of action.blocks) {
-          let blockContent = await getBlock(blockName);
+          if (!availableBlocks.includes(blockName)) {
+            throw new Error("Block bestaat niet: " + blockName);
+          }
+          
+          let blockContent = await getBlockContent(blockName);
           if (blockContent) {
             html += blockContent;
           } else {
-            throw new Error("Block not found: " + blockName);
+            throw new Error("Kan block niet laden: " + blockName);
           }
         }
 
         html += `</body></html>`;
 
         await githubSaveFile(action.file, html, action.description);
-        addMessage("ai", `✓ Created ${action.file}`);
+        addMessage("ai", "✓ " + action.description);
       }
       
       else if (action.type === "replace_text") {
         let file = await githubGetFile(action.file);
-        let updated = file.content.replace(action.find, action.replace);
+        let updated = file.content.replace(new RegExp(action.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), action.replace);
         await githubSaveFile(action.file, updated, action.description);
-        addMessage("ai", `✓ Updated ${action.file}: ${action.find} → ${action.replace}`);
+        addMessage("ai", "✓ " + action.description);
       }
     }
 
-    addMessage("ai", "Done!");
+    addMessage("ai", "Klaar!");
   } catch (error) {
     addMessage("ai", "Error: " + error.message);
   }
@@ -374,7 +378,7 @@ async function executePlan(planText) {
 
 async function processCommand(userText) {
   try {
-    addMessage("ai", "Analyzing command...");
+    addMessage("ai", "AI denkt na...");
 
     let aiResponse = await askGemini(userText);
     
@@ -382,14 +386,16 @@ async function processCommand(userText) {
     let jsonEnd = aiResponse.lastIndexOf("}") + 1;
     
     if (jsonStart === -1) {
-      addMessage("ai", "Could not understand command");
+      addMessage("ai", "Kon plan niet maken. Probeer anders.");
       return;
     }
     
     let jsonText = aiResponse.substring(jsonStart, jsonEnd);
     let plan = JSON.parse(jsonText);
 
-    showApprovalPanel(plan.plan);
+    addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
+    
+    window.pendingPlan = plan;
   } catch (error) {
     addMessage("ai", "Error: " + error.message);
   }
@@ -403,14 +409,22 @@ async function sendMessage(event) {
 
   if (!text) return;
   if (!config.geminiKey || !config.githubToken) {
-    addMessage("ai", "Configure API keys in Settings first");
+    addMessage("ai", "Stel eerst API keys in via Settings");
     return;
   }
 
   input.value = "";
   addMessage("user", text);
   
-  await processCommand(text);
+  if (text.toLowerCase() === "ja" && window.pendingPlan) {
+    await executePlan(JSON.stringify(window.pendingPlan));
+    window.pendingPlan = null;
+  } else if (text.toLowerCase() === "nee" && window.pendingPlan) {
+    addMessage("ai", "Plan geweigerd.");
+    window.pendingPlan = null;
+  } else {
+    await processCommand(text);
+  }
 }
 </script>
 
