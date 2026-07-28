@@ -84,9 +84,10 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
   repo: "ai-theme"
 };
 
-let chatHistory = JSON.parse(localStorage.getItem("chat_history")) || [];
 let availableBlocks = [];
-let pendingPlanId = null;
+let pendingPlan = null;
+
+const commonBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html", "footer.html", "header.html", "gallery.html", "testimonials.html", "pricing.html"];
 
 window.onload = async function() {
   document.getElementById("gemini-key").value = config.geminiKey;
@@ -94,12 +95,16 @@ window.onload = async function() {
   document.getElementById("github-user").value = config.githubUser;
   document.getElementById("github-repo").value = config.repo;
   
-  restoreChat();
   await loadAvailableBlocks();
 };
 
 async function loadAvailableBlocks() {
   try {
+    if (!config.githubToken) {
+      availableBlocks = commonBlocks;
+      return;
+    }
+
     const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/blocks`;
     const response = await fetch(url, {
       headers: {
@@ -111,12 +116,13 @@ async function loadAvailableBlocks() {
     if (response.ok) {
       const data = await response.json();
       availableBlocks = data
-        .filter(item => item.name.endsWith('.html'))
+        .filter(item => item.name && item.name.endsWith('.html'))
         .map(item => item.name);
-      console.log("Available blocks:", availableBlocks);
+    } else {
+      availableBlocks = commonBlocks;
     }
   } catch (e) {
-    console.log("Could not load blocks:", e.message);
+    availableBlocks = commonBlocks;
   }
 }
 
@@ -157,27 +163,10 @@ function addMessage(role, text, type = "text") {
   }`;
   bubble.innerHTML = text;
   
-  if (type === "plan") {
-    bubble.id = "plan-" + Date.now();
-    pendingPlanId = bubble.id;
-  }
-  
   messageDiv.appendChild(bubble);
   chat.appendChild(messageDiv);
   
-  chatHistory.push({ role, text, type });
-  localStorage.setItem("chat_history", JSON.stringify(chatHistory));
-  
   setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 0);
-}
-
-function restoreChat() {
-  let chat = document.getElementById("chat");
-  chat.innerHTML = "";
-  
-  for (let msg of chatHistory) {
-    addMessage(msg.role, msg.text, msg.type);
-  }
 }
 
 function utf8ToBase64(str) {
@@ -253,49 +242,45 @@ async function getBlockContent(blockName) {
   }
 }
 
+function isActionCommand(text) {
+  text = text.toLowerCase();
+  const actionWords = ["maak", "plaats", "voeg", "verander", "update", "delete", "create", "add", "remove", "change", "edit", "genereer"];
+  return actionWords.some(word => text.includes(word));
+}
+
 async function askGemini(userText) {
-  let blocksInfo = availableBlocks.length > 0 
+  let blocksInfo = availableBlocks && availableBlocks.length > 0 
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
-    : "Geen blocks gevonden";
+    : "Geen blocks beschikbaar";
 
-  let prompt = `Je bent een AI Website Builder.
+  let prompt = `Je bent een AI Website Builder Assistant.
 
-CONTEXT:
 ${blocksInfo}
 
-Je taak:
-1. Begrijp wat de gebruiker wil
-2. Maak een PLAN met exact wat je gaat doen
-3. Zeg het plan in Nederlands
-
-REGELS:
-- Maak alleen NIEUWE bestanden (bijv: portfolio.html)
-- Gebruik ALLEEN blocks die ik heb aangegeven
-- Als een block niet bestaat, zeg dat
-- Verander ALLEEN tekst in {{placeholders}}, nooit layout
-- Geen suggesties of vragen, gewoon het plan
+BELANGRIJK:
+- Antwoord ALLEEN als de user een ACTIE vraagt (maak, plaats, voeg, verander, etc)
+- Voor normale vragen of greetings: antwoord gewoon vriendelijk, GEEN JSON
+- Alleen JSON voor ACTIES met een plan
 
 USER VRAAG: "${userText}"
 
-ANTWOORD FORMAT (ALLEEN JSON):
+Beoordeel: Is dit een actieverzoek? (maak pagina, plaats block, verander tekst, etc)
+
+ALS JA -> Geef JSON plan:
 {
-  "plan": "Duidelijke Nederlandse omschrijving wat ik ga doen",
+  "is_action": true,
+  "plan": "Nederlands plan wat je gaat doen",
   "actions": [
     {
       "type": "create_page",
       "file": "portfolio.html",
       "blocks": ["hero.html", "services.html"],
-      "description": "Nieuwe portfolio pagina"
-    },
-    {
-      "type": "replace_text",
-      "file": "portfolio.html",
-      "find": "{{title}}",
-      "replace": "Mijn Portfolio",
-      "description": "Titel aanpassen"
+      "description": "Portfolio pagina maken"
     }
   ]
-}`;
+}
+
+ALS NEE -> Antwoord vriendelijk maar GEEN JSON.`;
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.geminiKey}`,
@@ -310,22 +295,17 @@ ANTWOORD FORMAT (ALLEEN JSON):
 
   const data = await response.json();
   if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-    throw new Error("Invalid Gemini response");
+    throw new Error("Gemini API error");
   }
   return data.candidates[0].content.parts[0].text;
 }
 
-async function executePlan(planText) {
+async function executePlan(plan) {
   try {
-    let jsonStart = planText.indexOf("{");
-    let jsonEnd = planText.lastIndexOf("}") + 1;
-    
-    if (jsonStart === -1 || jsonEnd <= jsonStart) {
-      throw new Error("No valid plan found in response");
+    if (!plan.actions || plan.actions.length === 0) {
+      addMessage("ai", "Geen acties in plan.");
+      return;
     }
-    
-    let jsonText = planText.substring(jsonStart, jsonEnd);
-    let plan = JSON.parse(jsonText);
 
     addMessage("ai", "Voert plan uit...");
 
@@ -376,24 +356,49 @@ async function executePlan(planText) {
 
 async function processCommand(userText) {
   try {
-    addMessage("ai", "AI denkt na...");
+    if (!isActionCommand(userText)) {
+      addMessage("ai", "Denken...");
+      
+      let aiResponse = await askGemini(userText);
+      
+      if (aiResponse.includes("{")) {
+        let jsonStart = aiResponse.indexOf("{");
+        let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+        let jsonText = aiResponse.substring(jsonStart, jsonEnd);
+        let plan = JSON.parse(jsonText);
+        
+        if (plan.is_action) {
+          addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
+          pendingPlan = plan;
+        } else {
+          addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+        }
+      } else {
+        addMessage("ai", aiResponse.trim());
+      }
+    } else {
+      addMessage("ai", "Plan maken...");
+      
+      let aiResponse = await askGemini(userText);
+      
+      let jsonStart = aiResponse.indexOf("{");
+      let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+      
+      if (jsonStart === -1 || jsonEnd <= jsonStart) {
+        addMessage("ai", "Kon plan niet maken. Probeer anders.");
+        return;
+      }
+      
+      let jsonText = aiResponse.substring(jsonStart, jsonEnd);
+      let plan = JSON.parse(jsonText);
 
-    let aiResponse = await askGemini(userText);
-    
-    let jsonStart = aiResponse.indexOf("{");
-    let jsonEnd = aiResponse.lastIndexOf("}") + 1;
-    
-    if (jsonStart === -1) {
-      addMessage("ai", "Kon plan niet maken. Probeer anders.");
-      return;
+      if (plan.is_action) {
+        addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
+        pendingPlan = plan;
+      } else {
+        addMessage("ai", "Kon plan niet opstellen.");
+      }
     }
-    
-    let jsonText = aiResponse.substring(jsonStart, jsonEnd);
-    let plan = JSON.parse(jsonText);
-
-    addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
-    
-    window.pendingPlan = plan;
   } catch (error) {
     addMessage("ai", "Error: " + error.message);
   }
@@ -414,12 +419,12 @@ async function sendMessage(event) {
   input.value = "";
   addMessage("user", text);
   
-  if (text.toLowerCase() === "ja" && window.pendingPlan) {
-    await executePlan(JSON.stringify(window.pendingPlan));
-    window.pendingPlan = null;
-  } else if (text.toLowerCase() === "nee" && window.pendingPlan) {
+  if (text.toLowerCase() === "ja" && pendingPlan) {
+    await executePlan(pendingPlan);
+    pendingPlan = null;
+  } else if (text.toLowerCase() === "nee" && pendingPlan) {
     addMessage("ai", "Plan geweigerd.");
-    window.pendingPlan = null;
+    pendingPlan = null;
   } else {
     await processCommand(text);
   }
