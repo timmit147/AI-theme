@@ -89,6 +89,16 @@ let pendingPlan = null;
 
 const commonBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html", "footer.html", "header.html", "gallery.html", "testimonials.html", "pricing.html"];
 
+const greetings = {
+  "hi": "Hallo! Ik ben je AI Website Builder. Ik kan websites maken met blocks. Zeg 'maak portfolio.html' of 'plaats hero block'.",
+  "hallo": "Hallo! Wat kan ik voor je doen?",
+  "hey": "Hey! Klaar om websites te bouwen?",
+  "goedemorgen": "Goedemorgen! Zeg me wat je wilt maken.",
+  "goedemiddag": "Goedemiddag! Wat kan ik voor je bouwen?",
+  "goedenavond": "Goedenavond! Klaar voor website building?",
+  "hoe gaat": "Prima! Klaar om te werken. Wat wil je maken?"
+};
+
 window.onload = async function() {
   document.getElementById("gemini-key").value = config.geminiKey;
   document.getElementById("github-token").value = config.githubToken;
@@ -115,9 +125,14 @@ async function loadAvailableBlocks() {
 
     if (response.ok) {
       const data = await response.json();
-      availableBlocks = data
-        .filter(item => item.name && item.name.endsWith('.html'))
-        .map(item => item.name);
+      if (Array.isArray(data)) {
+        availableBlocks = data
+          .filter(item => item && item.name && item.name.endsWith('.html'))
+          .map(item => item.name);
+      }
+      if (availableBlocks.length === 0) {
+        availableBlocks = commonBlocks;
+      }
     } else {
       availableBlocks = commonBlocks;
     }
@@ -170,16 +185,28 @@ function addMessage(role, text, type = "text") {
 }
 
 function utf8ToBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
+  try {
+    return btoa(unescape(encodeURIComponent(str)));
+  } catch (e) {
+    return btoa(str);
+  }
 }
 
 function base64ToUtf8(str) {
-  return decodeURIComponent(
-    Array.prototype.map.call(atob(str), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
-  );
+  try {
+    return decodeURIComponent(
+      Array.prototype.map.call(atob(str), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+  } catch (e) {
+    return atob(str);
+  }
 }
 
 async function githubGetFile(path) {
+  if (!config.githubToken) {
+    throw new Error("GitHub token required");
+  }
+
   const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
   const response = await fetch(url, {
     headers: {
@@ -200,6 +227,10 @@ async function githubGetFile(path) {
 }
 
 async function githubSaveFile(path, content, message) {
+  if (!config.githubToken) {
+    throw new Error("GitHub token required");
+  }
+
   const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
   
   let existing = null;
@@ -227,7 +258,7 @@ async function githubSaveFile(path, content, message) {
 
   if (!response.ok) {
     let error = await response.json();
-    throw new Error(error.message);
+    throw new Error(error.message || "Save failed");
   }
 
   return await response.json();
@@ -242,6 +273,22 @@ async function getBlockContent(blockName) {
   }
 }
 
+function isGreeting(text) {
+  text = text.toLowerCase().trim();
+  for (let key in greetings) {
+    if (text.includes(key)) return true;
+  }
+  return false;
+}
+
+function getGreetingResponse(text) {
+  text = text.toLowerCase().trim();
+  for (let key in greetings) {
+    if (text.includes(key)) return greetings[key];
+  }
+  return "Hallo! Hoe kan ik je helpen?";
+}
+
 function isActionCommand(text) {
   text = text.toLowerCase();
   const actionWords = ["maak", "plaats", "voeg", "verander", "update", "delete", "create", "add", "remove", "change", "edit", "genereer"];
@@ -249,6 +296,10 @@ function isActionCommand(text) {
 }
 
 async function askGemini(userText) {
+  if (!config.geminiKey) {
+    throw new Error("Gemini API key required");
+  }
+
   let blocksInfo = availableBlocks && availableBlocks.length > 0 
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
@@ -266,7 +317,7 @@ USER VRAAG: "${userText}"
 
 Beoordeel: Is dit een actieverzoek? (maak pagina, plaats block, verander tekst, etc)
 
-ALS JA -> Geef JSON plan:
+ALS JA -> Geef ALLEEN JSON (geen extra tekst):
 {
   "is_action": true,
   "plan": "Nederlands plan wat je gaat doen",
@@ -280,7 +331,7 @@ ALS JA -> Geef JSON plan:
   ]
 }
 
-ALS NEE -> Antwoord vriendelijk maar GEEN JSON.`;
+ALS NEE -> Antwoord vriendelijk Nederlands, GEEN JSON.`;
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.geminiKey}`,
@@ -289,15 +340,21 @@ ALS NEE -> Antwoord vriendelijk maar GEEN JSON.`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }]
-      })
+      }),
+      signal: AbortSignal.timeout(15000)
     }
   );
 
-  const data = await response.json();
-  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+  if (!response.ok) {
     throw new Error("Gemini API error");
   }
-  return data.candidates[0].content.parts[0].text;
+
+  const data = await response.json();
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error("Invalid response");
+  }
+  
+  return data.candidates[0].content.parts[0].text || "";
 }
 
 async function executePlan(plan) {
@@ -350,57 +407,74 @@ async function executePlan(plan) {
 
     addMessage("ai", "Klaar!");
   } catch (error) {
-    addMessage("ai", "Error: " + error.message);
+    addMessage("ai", "Could not execute: " + error.message);
   }
 }
 
 async function processCommand(userText) {
   try {
+    if (isGreeting(userText)) {
+      addMessage("ai", getGreetingResponse(userText));
+      return;
+    }
+
     if (!isActionCommand(userText)) {
       addMessage("ai", "Denken...");
       
-      let aiResponse = await askGemini(userText);
-      
-      if (aiResponse.includes("{")) {
-        let jsonStart = aiResponse.indexOf("{");
-        let jsonEnd = aiResponse.lastIndexOf("}") + 1;
-        let jsonText = aiResponse.substring(jsonStart, jsonEnd);
-        let plan = JSON.parse(jsonText);
+      try {
+        let aiResponse = await askGemini(userText);
         
-        if (plan.is_action) {
-          addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
-          pendingPlan = plan;
+        if (aiResponse.includes("{")) {
+          let jsonStart = aiResponse.indexOf("{");
+          let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+          if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            let jsonText = aiResponse.substring(jsonStart, jsonEnd);
+            let plan = JSON.parse(jsonText);
+            
+            if (plan.is_action) {
+              addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
+              pendingPlan = plan;
+            } else {
+              addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+            }
+          } else {
+            addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+          }
         } else {
-          addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+          addMessage("ai", aiResponse.trim() || "Sorry, kon niet antwoorden.");
         }
-      } else {
-        addMessage("ai", aiResponse.trim());
+      } catch (e) {
+        addMessage("ai", "Sorry, kon niet antwoorden. Probeer iets specifiekers.");
       }
     } else {
       addMessage("ai", "Plan maken...");
       
-      let aiResponse = await askGemini(userText);
-      
-      let jsonStart = aiResponse.indexOf("{");
-      let jsonEnd = aiResponse.lastIndexOf("}") + 1;
-      
-      if (jsonStart === -1 || jsonEnd <= jsonStart) {
-        addMessage("ai", "Kon plan niet maken. Probeer anders.");
-        return;
-      }
-      
-      let jsonText = aiResponse.substring(jsonStart, jsonEnd);
-      let plan = JSON.parse(jsonText);
+      try {
+        let aiResponse = await askGemini(userText);
+        
+        let jsonStart = aiResponse.indexOf("{");
+        let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+        
+        if (jsonStart === -1 || jsonEnd <= jsonStart) {
+          addMessage("ai", "Kon plan niet maken. Probeer anders: 'maak portfolio.html' of 'plaats hero block'");
+          return;
+        }
+        
+        let jsonText = aiResponse.substring(jsonStart, jsonEnd);
+        let plan = JSON.parse(jsonText);
 
-      if (plan.is_action) {
-        addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
-        pendingPlan = plan;
-      } else {
-        addMessage("ai", "Kon plan niet opstellen.");
+        if (plan.is_action) {
+          addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen.", "plan");
+          pendingPlan = plan;
+        } else {
+          addMessage("ai", "Kon plan niet opstellen.");
+        }
+      } catch (error) {
+        addMessage("ai", "Kon plan niet maken. Error: " + error.message);
       }
     }
   } catch (error) {
-    addMessage("ai", "Error: " + error.message);
+    addMessage("ai", "Something went wrong: " + error.message);
   }
 }
 
@@ -411,10 +485,6 @@ async function sendMessage(event) {
   let text = input.value.trim();
 
   if (!text) return;
-  if (!config.geminiKey || !config.githubToken) {
-    addMessage("ai", "Stel eerst API keys in via Settings");
-    return;
-  }
 
   input.value = "";
   addMessage("user", text);
