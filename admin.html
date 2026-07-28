@@ -22,7 +22,7 @@
   <div class="flex items-center justify-center h-full">
     <div class="text-center">
       <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
-      <p class="text-sm text-neutral-500">Beschrijf je website en AI maakt het klaar</p>
+      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
     </div>
   </div>
 </main>
@@ -32,7 +32,7 @@
     id="user-input"
     type="text"
     class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
-    placeholder="Maak een website voor..."
+    placeholder="Geef een opdracht..."
     autocomplete="off"
   >
   <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
@@ -40,6 +40,33 @@
   </button>
 </form>
 
+<!-- APPROVAL PANEL -->
+<div id="approval-panel" class="hidden bg-neutral-900 border-t border-neutral-800 p-4 space-y-3">
+  <div class="text-sm">
+    <p class="text-neutral-400 mb-3">AI Plan:</p>
+    <div id="plan-text" class="bg-neutral-950 border border-neutral-800 rounded p-3 text-sm text-neutral-100 mb-3"></div>
+  </div>
+  
+  <div class="flex gap-2">
+    <button onclick="approvePlan()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+      Akkoord
+    </button>
+    <button onclick="rejectPlan()" class="flex-1 bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+      Weigeren
+    </button>
+    <input 
+      id="suggestion-input"
+      type="text"
+      placeholder="Suggestie..."
+      class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700"
+    >
+    <button onclick="suggestChange()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+      Suggestie
+    </button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
 <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
   <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-md space-y-4">
     <h2 class="font-light text-lg">Settings</h2>
@@ -82,6 +109,8 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
   githubUser: "timmit147",
   repo: "ai-theme"
 };
+
+let pendingPlan = null;
 
 window.onload = function() {
   document.getElementById("gemini-key").value = config.geminiKey;
@@ -131,6 +160,37 @@ function addMessage(role, text) {
   setTimeout(() => { chat.scrollTop = chat.scrollHeight; }, 0);
 }
 
+function showApprovalPanel(plan) {
+  pendingPlan = plan;
+  document.getElementById("plan-text").textContent = plan;
+  document.getElementById("approval-panel").classList.remove("hidden");
+  document.getElementById("suggestion-input").value = "";
+}
+
+function hideApprovalPanel() {
+  document.getElementById("approval-panel").classList.add("hidden");
+  pendingPlan = null;
+}
+
+function approvePlan() {
+  addMessage("ai", "Plan goedgekeurd. Voert uit...");
+  executePlan(pendingPlan);
+  hideApprovalPanel();
+}
+
+function rejectPlan() {
+  addMessage("ai", "Plan geweigerd.");
+  hideApprovalPanel();
+}
+
+function suggestChange() {
+  let suggestion = document.getElementById("suggestion-input").value.trim();
+  if (suggestion) {
+    addMessage("user", "Suggestie: " + suggestion);
+    hideApprovalPanel();
+  }
+}
+
 function utf8ToBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -151,7 +211,7 @@ async function githubGetFile(path) {
   });
 
   if (!response.ok) {
-    throw new Error("Could not fetch file: " + path);
+    throw new Error("File not found: " + path);
   }
 
   const data = await response.json();
@@ -195,55 +255,50 @@ async function githubSaveFile(path, content, message) {
   return await response.json();
 }
 
-const availableBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html"];
-
-async function loadBlocks() {
-  let blocks = {};
-  for (let block of availableBlocks) {
-    try {
-      let file = await githubGetFile("blocks/" + block);
-      blocks[block] = file.content;
-    } catch (e) {
-      console.log("Block missing:", block);
-    }
+async function getBlock(blockName) {
+  try {
+    let file = await githubGetFile("blocks/" + blockName);
+    return file.content;
+  } catch (e) {
+    return null;
   }
-  return blocks;
 }
 
 async function askGemini(userText) {
-  let blocks = await loadBlocks();
-  let blockNames = Object.keys(blocks).join("\n");
-  
-  let blockContent = Object.entries(blocks)
-    .map(([name, html]) => `BLOCK: ${name}\n${html}`)
-    .join("\n");
-
   let prompt = `Je bent een AI Website Builder.
-Je werkt met vaste HTML blocks.
 
-ZEER BELANGRIJKE REGELS:
-1. Gebruik alleen bestaande blocks.
-2. Maak nooit nieuwe HTML blocks.
-3. Verander nooit Tailwind classes.
-4. Verander nooit de layout.
-5. Alleen teksten, titels en afbeeldingen aanpassen.
+Jouw werk:
+1. Begrijp wat de gebruiker wil
+2. Maak een PLAN met exact wat je gaat doen
+3. Antwoord ALLEEN met het plan, geen HTML!
 
-Beschikbare blocks:
-${blockNames}
+REGELS:
+- Maak alleen NIEUWE bestanden (bijv: hallo.html)
+- Plaats ALLEEN bestaande blocks in bestanden
+- Verander ALLEEN tekst, nooit layout of Tailwind
+- Als bestand bestaat: update het
+- Als block niet bestaat: zeg dit
 
-Originele blocks:
-${blockContent}
+USER VRAAG: ${userText}
 
-Maak een website voor:
-${userText}
-
-Geef alleen JSON terug:
+ANTWOORD FORMAT (ALLEEN JSON):
 {
-  "blocks": ["hero.html", "text-media.html"],
-  "content": {
-    "hero.title": "...",
-    "hero.text": "..."
-  }
+  "plan": "Exact omschrijving van wat ik ga doen",
+  "actions": [
+    {
+      "type": "create_page",
+      "file": "hallo.html",
+      "blocks": ["hero.html"],
+      "description": "Nieuwe pagina met..."
+    },
+    {
+      "type": "replace_text",
+      "file": "hallo.html",
+      "find": "{{hero.title}}",
+      "replace": "Pizza",
+      "description": "Hero titel veranderen naar Pizza"
+    }
+  ]
 }`;
 
   const response = await fetch(
@@ -264,64 +319,80 @@ Geef alleen JSON terug:
   return data.candidates[0].content.parts[0].text;
 }
 
-async function createWebsite(userText) {
+async function executePlan(planText) {
   try {
-    addMessage("ai", "Building website...");
-
-    let aiResponse = await askGemini(userText);
-    let jsonStart = aiResponse.indexOf("{");
-    let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+    let jsonStart = planText.indexOf("{");
+    let jsonEnd = planText.lastIndexOf("}") + 1;
     
-    if (jsonStart === -1 || jsonEnd === 0) {
-      throw new Error("Could not parse AI response");
+    if (jsonStart === -1) {
+      throw new Error("No valid plan found");
     }
     
-    let jsonText = aiResponse.substring(jsonStart, jsonEnd);
-    let result = JSON.parse(jsonText);
+    let jsonText = planText.substring(jsonStart, jsonEnd);
+    let plan = JSON.parse(jsonText);
 
-    let html = await buildPage(result);
+    for (let action of plan.actions) {
+      if (action.type === "create_page") {
+        let html = `<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${action.file}</title>
+<script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body>`;
 
-    await githubSaveFile("index.html", html, "AI generated website");
+        for (let blockName of action.blocks) {
+          let blockContent = await getBlock(blockName);
+          if (blockContent) {
+            html += blockContent;
+          } else {
+            throw new Error("Block not found: " + blockName);
+          }
+        }
 
-    addMessage("ai", `Website created. Blocks: ${result.blocks.join(", ")}`);
+        html += `</body></html>`;
+
+        await githubSaveFile(action.file, html, action.description);
+        addMessage("ai", `✓ Created ${action.file}`);
+      }
+      
+      else if (action.type === "replace_text") {
+        let file = await githubGetFile(action.file);
+        let updated = file.content.replace(action.find, action.replace);
+        await githubSaveFile(action.file, updated, action.description);
+        addMessage("ai", `✓ Updated ${action.file}: ${action.find} → ${action.replace}`);
+      }
+    }
+
+    addMessage("ai", "Done!");
   } catch (error) {
     addMessage("ai", "Error: " + error.message);
   }
 }
 
-async function buildPage(data) {
-  let blocks = await loadBlocks();
-  
-  let finalHTML = `<!DOCTYPE html>
-<html lang="nl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Website</title>
-<script src="https://cdn.tailwindcss.com"><\/script>
-</head>
-<body>`;
+async function processCommand(userText) {
+  try {
+    addMessage("ai", "Analyzing command...");
 
-  for (let blockName of data.blocks) {
-    let block = blocks[blockName];
-    if (!block) continue;
-    let edited = replaceContent(block, data.content);
-    finalHTML += edited;
+    let aiResponse = await askGemini(userText);
+    
+    let jsonStart = aiResponse.indexOf("{");
+    let jsonEnd = aiResponse.lastIndexOf("}") + 1;
+    
+    if (jsonStart === -1) {
+      addMessage("ai", "Could not understand command");
+      return;
+    }
+    
+    let jsonText = aiResponse.substring(jsonStart, jsonEnd);
+    let plan = JSON.parse(jsonText);
+
+    showApprovalPanel(plan.plan);
+  } catch (error) {
+    addMessage("ai", "Error: " + error.message);
   }
-
-  finalHTML += `</body></html>`;
-  return finalHTML;
-}
-
-function replaceContent(html, content) {
-  if (!content) return html;
-  
-  Object.keys(content).forEach(key => {
-    let value = content[key];
-    html = html.replace(`{{${key}}}`, value);
-  });
-  
-  return html;
 }
 
 async function sendMessage(event) {
@@ -332,14 +403,14 @@ async function sendMessage(event) {
 
   if (!text) return;
   if (!config.geminiKey || !config.githubToken) {
-    addMessage("ai", "Please configure API keys in Settings.");
+    addMessage("ai", "Configure API keys in Settings first");
     return;
   }
 
   input.value = "";
   addMessage("user", text);
   
-  await createWebsite(text);
+  await processCommand(text);
 }
 </script>
 
