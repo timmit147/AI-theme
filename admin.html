@@ -4,1233 +4,358 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>AI Theme Builder</title>
-
 <script src="https://cdn.tailwindcss.com"></script>
-
+<style>
+  body { font-feature-settings: "kern"; }
+  .chat-container { display: flex; flex-direction: column; }
+  .message { animation: slideIn 0.3s ease-out; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
 </head>
 
+<body class="bg-black text-white h-screen flex flex-col">
 
-<body class="bg-slate-900 text-white h-screen flex flex-col">
-
-
-<header class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center">
-
-    <div>
-        <h1 class="font-bold text-lg">
-            🧱 AI Theme Builder
-        </h1>
-
-        <p class="text-xs text-slate-400">
-            GitHub Pages AI Website Builder
-        </p>
-    </div>
-
-
-    <button 
-    onclick="toggleSettings()"
-    class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm">
-
-        ⚙️ Instellingen
-
-    </button>
-
+<header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
+  <div>
+    <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
+    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
+  </div>
+  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+    Settings
+  </button>
 </header>
 
-
-
-
-<main 
-id="chat"
-class="flex-1 overflow-y-auto p-6 space-y-4">
-
-
-<div class="text-center text-slate-400 mt-10">
-
-    <div class="text-5xl">
-        🤖
+<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4 chat-container">
+  <div class="flex items-center justify-center h-full">
+    <div class="text-center">
+      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
+      <p class="text-sm text-neutral-500">Beschrijf je website en AI maakt het klaar</p>
     </div>
-
-    <h2 class="mt-4 text-lg font-bold text-white">
-        AI Website Builder
-    </h2>
-
-    <p class="text-sm mt-2">
-        Maak websites met vaste blocks.
-        AI verandert alleen content.
-    </p>
-
-</div>
-
-
+  </div>
 </main>
 
-
-
-
-
-<form 
-onsubmit="sendMessage(event)"
-class="bg-slate-800 border-t border-slate-700 p-4 flex gap-3">
-
-
-<input
-
-id="user-input"
-
-class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 outline-none"
-
-placeholder="Bijvoorbeeld: Maak een website voor een loodgieter..."
-
->
-
-
-<button
-
-class="bg-emerald-600 hover:bg-emerald-500 px-6 rounded-lg font-medium">
-
-Verstuur
-
-</button>
-
-
+<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
+  <input
+    id="user-input"
+    type="text"
+    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
+    placeholder="Maak een website voor..."
+    autocomplete="off"
+  >
+  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
+    Send
+  </button>
 </form>
 
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-md space-y-4">
+    <h2 class="font-light text-lg">Settings</h2>
 
+    <div>
+      <label class="text-xs text-neutral-500 block mb-2">Gemini API Key</label>
+      <input id="gemini-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
 
+    <div>
+      <label class="text-xs text-neutral-500 block mb-2">GitHub Token</label>
+      <input id="github-token" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
 
+    <div>
+      <label class="text-xs text-neutral-500 block mb-2">GitHub User</label>
+      <input id="github-user" value="timmit147" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
 
+    <div>
+      <label class="text-xs text-neutral-500 block mb-2">Repository</label>
+      <input id="github-repo" value="ai-theme" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
 
-<!-- INSTELLINGEN -->
-
-<div
-
-id="settings-modal"
-
-class="hidden fixed inset-0 bg-black/70 items-center justify-center p-4">
-
-
-<div
-
-class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md space-y-4">
-
-
-<h2 class="font-bold text-lg">
-
-⚙️ Instellingen
-
-</h2>
-
-
-
-<div>
-
-<label class="text-xs text-slate-400">
-
-Gemini API Key
-
-</label>
-
-
-<input
-
-id="gemini-key"
-
-type="password"
-
-class="w-full mt-1 bg-slate-900 border border-slate-700 rounded p-2"
-
->
-
+    <div class="flex justify-end gap-2 pt-4">
+      <button onclick="toggleSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
+        Cancel
+      </button>
+      <button onclick="saveSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
+        Save
+      </button>
+    </div>
+  </div>
 </div>
-
-
-
-
-
-<div>
-
-<label class="text-xs text-slate-400">
-
-GitHub Token
-
-</label>
-
-
-<input
-
-id="github-token"
-
-type="password"
-
-class="w-full mt-1 bg-slate-900 border border-slate-700 rounded p-2"
-
->
-
-</div>
-
-
-
-
-
-<div>
-
-<label class="text-xs text-slate-400">
-
-GitHub gebruiker
-
-</label>
-
-
-<input
-
-id="github-user"
-
-value="timmit147"
-
-class="w-full mt-1 bg-slate-900 border border-slate-700 rounded p-2"
-
->
-
-</div>
-
-
-
-
-
-<div>
-
-<label class="text-xs text-slate-400">
-
-Template Repo
-
-</label>
-
-
-<input
-
-id="github-repo"
-
-value="ai-theme"
-
-class="w-full mt-1 bg-slate-900 border border-slate-700 rounded p-2"
-
->
-
-</div>
-
-
-
-
-
-<div class="flex justify-end gap-2 pt-3">
-
-
-<button
-
-onclick="toggleSettings()"
-
-type="button"
-
-class="px-4 py-2 bg-slate-700 rounded">
-
-Annuleren
-
-</button>
-
-
-
-<button
-
-onclick="saveSettings()"
-
-type="button"
-
-class="px-4 py-2 bg-emerald-600 rounded">
-
-Opslaan
-
-</button>
-
-
-</div>
-
-
-
-</div>
-
-</div>
-
-
-
-
-
-
 
 <script>
-
-
-let config = JSON.parse(
-localStorage.getItem("ai_theme_config")
-)
-||
-{
-
-geminiKey:"",
-
-githubToken:"",
-
-githubUser:"timmit147",
-
-repo:"ai-theme"
-
+let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
+  geminiKey: "",
+  githubToken: "",
+  githubUser: "timmit147",
+  repo: "ai-theme"
 };
 
-
-
-
-
-window.onload = function(){
-
-
-document.getElementById("gemini-key").value =
-config.geminiKey;
-
-
-document.getElementById("github-token").value =
-config.githubToken;
-
-
-document.getElementById("github-user").value =
-config.githubUser;
-
-
-document.getElementById("github-repo").value =
-config.repo;
-
-
+window.onload = function() {
+  document.getElementById("gemini-key").value = config.geminiKey;
+  document.getElementById("github-token").value = config.githubToken;
+  document.getElementById("github-user").value = config.githubUser;
+  document.getElementById("github-repo").value = config.repo;
 };
 
-
-
-
-
-
-
-function toggleSettings(){
-
-
-let modal =
-document.getElementById("settings-modal");
-
-
-modal.classList.toggle("hidden");
-
-modal.classList.toggle("flex");
-
-
+function toggleSettings() {
+  let modal = document.getElementById("settings-modal");
+  modal.classList.toggle("hidden");
 }
 
-
-
-
-
-
-
-function saveSettings(){
-
-
-config = {
-
-geminiKey:
-document.getElementById("gemini-key").value.trim(),
-
-
-githubToken:
-document.getElementById("github-token").value.trim(),
-
-
-githubUser:
-document.getElementById("github-user").value.trim(),
-
-
-repo:
-document.getElementById("github-repo").value.trim()
-
-};
-
-
-
-localStorage.setItem(
-
-"ai_theme_config",
-
-JSON.stringify(config)
-
-);
-
-
-
-toggleSettings();
-
-
-addMessage(
-"ai",
-"✅ Instellingen opgeslagen."
-);
-
-
+function saveSettings() {
+  config = {
+    geminiKey: document.getElementById("gemini-key").value.trim(),
+    githubToken: document.getElementById("github-token").value.trim(),
+    githubUser: document.getElementById("github-user").value.trim(),
+    repo: document.getElementById("github-repo").value.trim()
+  };
+  localStorage.setItem("ai_theme_config", JSON.stringify(config));
+  toggleSettings();
+  addMessage("ai", "Settings saved.");
 }
 
-
-
-
-
-
-
-function addMessage(role,text){
-
-
-let chat =
-document.getElementById("chat");
-
-
-
-chat.innerHTML += `
-
-<div class="${role==="user"?"text-right":"text-left"}">
-
-<div class="inline-block max-w-xl p-4 rounded-xl
-
-${role==="user"
-?"bg-emerald-600"
-:"bg-slate-800 border border-slate-700"}
-
-">
-
-${text}
-
-</div>
-
-</div>
-
-`;
-
-
-
-chat.scrollTop =
-chat.scrollHeight;
-
-
-}
-
-
-
-
-
-
-
-async function sendMessage(event){
-
-
-event.preventDefault();
-
-
-let input =
-document.getElementById("user-input");
-
-
-let text =
-input.value.trim();
-
-
-if(!text) return;
-
-
-
-input.value="";
-
-
-addMessage(
-"user",
-text
-);
-
-
-
-addMessage(
-"ai",
-"🔄 AI denkt na..."
-);
-
-
-
-}
-
+function addMessage(role, text) {
+  let chat = document.getElementById("chat");
   
+  if (chat.querySelector('div:first-child')?.textContent.includes("AI Website Builder")) {
+    chat.innerHTML = "";
+  }
 
-
-// ===============================
-// GITHUB HELPERS
-// ===============================
-
-
-function utf8ToBase64(str){
-
-return btoa(
-unescape(
-encodeURIComponent(str)
-)
-);
-
+  let messageDiv = document.createElement("div");
+  messageDiv.className = `message ${role === "user" ? "text-right" : "text-left"}`;
+  
+  let bubble = document.createElement("div");
+  bubble.className = `inline-block max-w-2xl px-4 py-3 rounded text-sm ${
+    role === "user" 
+      ? "bg-neutral-800 text-white" 
+      : "bg-neutral-900 border border-neutral-800 text-neutral-100"
+  }`;
+  bubble.innerHTML = text;
+  
+  messageDiv.appendChild(bubble);
+  chat.appendChild(messageDiv);
+  
+  chat.scrollTop = chat.scrollHeight;
 }
 
-
-
-function base64ToUtf8(str){
-
-return decodeURIComponent(
-Array.prototype.map.call(
-atob(str),
-c => '%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)
-).join('')
-);
-
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
 }
 
-
-
-
-
-async function githubGetFile(path){
-
-
-const url =
-`https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
-
-
-const response =
-await fetch(url,{
-
-headers:{
-
-Authorization:
-`Bearer ${config.githubToken}`,
-
-Accept:
-"application/vnd.github+json"
-
+function base64ToUtf8(str) {
+  return decodeURIComponent(
+    Array.prototype.map.call(atob(str), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+  );
 }
 
-});
+async function githubGetFile(path) {
+  const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${config.githubToken}`,
+      Accept: "application/vnd.github+json"
+    }
+  });
 
+  if (!response.ok) {
+    throw new Error("Could not fetch file: " + path);
+  }
 
-
-if(!response.ok){
-
-throw new Error(
-"Kan bestand niet ophalen: "+path
-);
-
+  const data = await response.json();
+  return {
+    content: base64ToUtf8(data.content),
+    sha: data.sha
+  };
 }
 
+async function githubSaveFile(path, content, message) {
+  const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
+  
+  let existing = null;
+  try {
+    existing = await githubGetFile(path);
+  } catch (e) {}
 
+  let body = {
+    message: message,
+    content: utf8ToBase64(content)
+  };
 
-const data =
-await response.json();
+  if (existing) {
+    body.sha = existing.sha;
+  }
 
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${config.githubToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
 
+  if (!response.ok) {
+    let error = await response.json();
+    throw new Error(error.message);
+  }
 
-return {
-
-content:
-base64ToUtf8(data.content),
-
-sha:
-data.sha
-
-};
-
-
+  return await response.json();
 }
-
-
-
-
-
-
-
-async function githubSaveFile(path,content,message){
-
-
-
-const url =
-`https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
-
-
-
-let existing = null;
-
-
-try{
-
-existing =
-await githubGetFile(path);
-
-}
-
-catch(e){}
-
-
-
-
-
-let body={
-
-
-message:message,
-
-
-content:
-utf8ToBase64(content)
-
-
-};
-
-
-
-if(existing){
-
-body.sha =
-existing.sha;
-
-}
-
-
-
-
-const response =
-await fetch(url,{
-
-method:"PUT",
-
-headers:{
-
-Authorization:
-`Bearer ${config.githubToken}`,
-
-"Content-Type":
-"application/json"
-
-},
-
-
-body:
-JSON.stringify(body)
-
-
-});
-
-
-
-if(!response.ok){
-
-let error =
-await response.json();
-
-throw new Error(error.message);
-
-}
-
-
-return await response.json();
-
-
-}
-
-
-
-
-
-
-
-
-// ===============================
-// BLOCKS OPHALEN
-// ===============================
-
-
 
 const availableBlocks = [
-
-"hero.html",
-
-"text-media.html",
-
-"media-text.html",
-
-"services.html",
-
-"contact.html"
-
+  "hero.html",
+  "text-media.html",
+  "media-text.html",
+  "services.html",
+  "contact.html"
 ];
 
-
-
-
-
-async function loadBlocks(){
-
-
-let blocks={};
-
-
-
-for(let block of availableBlocks){
-
-
-try{
-
-
-let file =
-await githubGetFile(
-"blocks/"+block
-);
-
-
-blocks[block]=
-file.content;
-
-
-
+async function loadBlocks() {
+  let blocks = {};
+  for (let block of availableBlocks) {
+    try {
+      let file = await githubGetFile("blocks/" + block);
+      blocks[block] = file.content;
+    } catch (e) {
+      console.log("Block missing:", block);
+    }
+  }
+  return blocks;
 }
 
-catch(e){
+async function askGemini(userText) {
+  let blocks = await loadBlocks();
+  let blockNames = Object.keys(blocks).join("\n");
+  
+  let blockContent = Object.entries(blocks)
+    .map(([name, html]) => `BLOCK: ${name}\n${html}`)
+    .join("\n");
 
-
-console.log(
-"Block ontbreekt:",
-block
-);
-
-
-}
-
-
-}
-
-
-
-return blocks;
-
-
-}
-
-
-
-
-
-
-
-
-
-// ===============================
-// GEMINI AI
-// ===============================
-
-
-
-
-
-async function askGemini(userText){
-
-
-
-let blocks =
-await loadBlocks();
-
-
-
-let blockNames =
-Object.keys(blocks)
-.join("\n");
-
-
-
-
-
-let blockContent =
-Object.entries(blocks)
-.map(([name,html])=>{
-
-
-return `
-
-BLOCK: ${name}
-
-${html}
-
-`;
-
-})
-.join("\n");
-
-
-
-
-
-
-
-let prompt = `
-
-
-Je bent een AI Website Builder.
-
+  let prompt = `Je bent een AI Website Builder.
 
 Je werkt met vaste HTML blocks.
 
-
 ZEER BELANGRIJKE REGELS:
-
-
 1. Gebruik alleen bestaande blocks.
-
 2. Maak nooit nieuwe HTML blocks.
-
 3. Verander nooit Tailwind classes.
-
 4. Verander nooit de layout.
-
 5. Alleen teksten, titels en afbeeldingen aanpassen.
-
-6. De uiteindelijke pagina moet bestaan uit de bestaande blocks.
-
+6. De uiteindelijke pagina moet bestaan uit bestaande blocks.
 
 Beschikbare blocks:
-
 ${blockNames}
 
-
-
-Hier zijn de originele blocks:
-
+Originele blocks:
 ${blockContent}
 
-
-
 Maak een website voor:
-
 ${userText}
 
-
-
-Geef alleen JSON terug:
-
-
+Geef alleen JSON terug in dit format:
 {
-"blocks":[
-"hero.html",
-"text-media.html"
-],
+  "blocks": ["hero.html", "text-media.html"],
+  "content": {
+    "hero.title": "...",
+    "hero.text": "..."
+  }
+}`;
 
-"content":{
-"hero.title":"",
-"hero.text":""
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.geminiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    }
+  );
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
 }
 
+async function createWebsite(userText) {
+  try {
+    addMessage("ai", "Building website...");
+
+    let aiResponse = await askGemini(userText);
+    let jsonText = aiResponse.substring(
+      aiResponse.indexOf("{"),
+      aiResponse.lastIndexOf("}") + 1
+    );
+    let result = JSON.parse(jsonText);
+
+    let html = await buildPage(result);
+
+    await githubSaveFile(
+      "index.html",
+      html,
+      "AI generated website"
+    );
+
+    addMessage("ai", `Website created.<br>Blocks: ${result.blocks.join(", ")}<br><br>index.html saved to GitHub.`);
+  } catch (error) {
+    addMessage("ai", "Error: " + error.message);
+  }
 }
 
-
-`;
-
-
-
-
-
-
-
-const response =
-await fetch(
-
-`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${config.geminiKey}`,
-
-{
-
-
-method:"POST",
-
-
-headers:{
-
-"Content-Type":
-"application/json"
-
-},
-
-
-body:JSON.stringify({
-
-contents:[
-
-{
-
-parts:[
-
-{
-text:prompt
-}
-
-]
-
-}
-
-]
-
-
-})
-
-
-}
-
-);
-
-
-
-const data =
-await response.json();
-
-
-
-return data
-.candidates[0]
-.content
-.parts[0]
-.text;
-
-
-
-}
-
+async function buildPage(data) {
+  let blocks = await loadBlocks();
   
-
-// ===============================
-// AI ANTWOORD VERWERKEN
-// ===============================
-
-
-async function createWebsite(userText){
-
-
-try{
-
-
-addMessage(
-"ai",
-"🧱 Blocks worden samengesteld..."
-);
-
-
-
-let aiResponse =
-await askGemini(userText);
-
-
-
-// JSON uit antwoord halen
-
-let jsonText =
-aiResponse.substring(
-aiResponse.indexOf("{"),
-aiResponse.lastIndexOf("}")+1
-);
-
-
-
-let result =
-JSON.parse(jsonText);
-
-
-
-
-let html =
-await buildPage(result);
-
-
-
-
-
-await githubSaveFile(
-
-"index.html",
-
-html,
-
-"AI generated website"
-
-);
-
-
-
-
-addMessage(
-
-"ai",
-
-`✅ Website gemaakt!<br>
-Blocks gebruikt:<br>
-${result.blocks.join("<br>")}
-<br><br>
-index.html staat nu op GitHub.`
-
-);
-
-
-
-}
-
-catch(error){
-
-
-addMessage(
-
-"ai",
-
-"❌ Fout: "+error.message
-
-);
-
-
-}
-
-
-
-}
-
-
-
-
-
-
-
-
-// ===============================
-// PAGINA BOUWEN
-// ===============================
-
-
-
-async function buildPage(data){
-
-
-
-let blocks =
-await loadBlocks();
-
-
-
-let finalHTML = `
-
-<!DOCTYPE html>
-
+  let finalHTML = `<!DOCTYPE html>
 <html lang="nl">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Website</title>
-
-
 <script src="https://cdn.tailwindcss.com"></script>
-
-
 </head>
+<body>`;
 
+  for (let blockName of data.blocks) {
+    let block = blocks[blockName];
+    if (!block) continue;
+    let edited = replaceContent(block, data.content);
+    finalHTML += edited;
+  }
 
-<body>
-
-`;
-
-
-
-
-
-
-for(let blockName of data.blocks){
-
-
-
-let block =
-blocks[blockName];
-
-
-
-if(!block){
-
-continue;
-
+  finalHTML += `</body></html>`;
+  return finalHTML;
 }
 
-
-
-
-let edited =
-replaceContent(
-
-block,
-
-data.content
-
-);
-
-
-
-finalHTML += edited;
-
-
-
+function replaceContent(html, content) {
+  if (!content) return html;
+  
+  Object.keys(content).forEach(key => {
+    let value = content[key];
+    html = html.replace(`{{${key}}}`, value);
+  });
+  
+  return html;
 }
 
+async function sendMessage(event) {
+  event.preventDefault();
 
+  let input = document.getElementById("user-input");
+  let text = input.value.trim();
 
+  if (!text) return;
+  if (!config.geminiKey || !config.githubToken) {
+    addMessage("ai", "Please configure API keys in Settings.");
+    return;
+  }
 
-
-finalHTML += `
-
-</body>
-
-</html>
-
-`;
-
-
-
-return finalHTML;
-
-
+  input.value = "";
+  addMessage("user", text);
+  
+  await createWebsite(text);
 }
-
-
-
-
-
-
-
-
-// ===============================
-// CONTENT VERVANGEN
-// ===============================
-
-
-
-function replaceContent(html,content){
-
-
-
-if(!content){
-
-return html;
-
-}
-
-
-
-Object.keys(content)
-.forEach(key=>{
-
-
-let value =
-content[key];
-
-
-
-// veilige tekst vervanging
-
-html =
-html.replace(
-
-`{{${key}}}`,
-
-value
-
-);
-
-
-});
-
-
-
-return html;
-
-
-}
-
-
-
-
-
-
-
-
-// ===============================
-// CHAT VERBINDEN
-// ===============================
-
-
-
-const oldSendMessage =
-sendMessage;
-
-
-
-async function sendMessage(event){
-
-
-event.preventDefault();
-
-
-
-let input =
-document.getElementById("user-input");
-
-
-
-let text =
-input.value.trim();
-
-
-
-if(!text)return;
-
-
-
-input.value="";
-
-
-
-addMessage(
-"user",
-text
-);
-
-
-
-await createWebsite(text);
-
-
-
-}
-
-
-
-
-
 </script>
 
-
 </body>
-
 </html>
