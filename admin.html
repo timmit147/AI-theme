@@ -95,6 +95,7 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
 
 let availableBlocks = [];
 let pendingPlan = null;
+let conversationHistory = [];
 
 const commonBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html", "footer.html", "header.html", "gallery.html", "testimonials.html", "pricing.html"];
 
@@ -333,33 +334,22 @@ async function askAI(userText) {
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
+  let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
+
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
-REGELS VOOR JE TAAK:
-1. **NIEUWE PAGINA MAKEN:** Als de gebruiker vraagt om een nieuwe pagina te maken, gebruik dan actietype "create_page" met de benodigde blocks en vul alle velden (titel, tekst, knoptekst, href, alt) volledig in zonder placeholders.
-2. **BESTAANDE PAGINA AANPASSEN:** Als de gebruiker vraagt om een bestaande pagina aan te passen (bijv. "pas de titel op de water pagina aan naar..."), maak dan **GEEN** nieuwe pagina aan. Gebruik actietype "update_page". Geef in "updates" exact aan welke tekst/titel je wilt vervangen of welke nieuwe waarde er moet komen. Pas alleen de gevraagde velden aan!
+GESCHIEDENIS VAN HET GESPREK:
+${historyText}
 
-USER: "${userText}"
+HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
+
+BELANGRIJKE INSTRUCTIES:
+1. **CONTEXT BEHOUDEN:** Als de gebruiker zegt "andere titel", "nee een andere", of een vergelijkbare correctie geeft op een vorig plan, begrijp dan dat dit betrekking heeft op de pagina en het element uit het voorgaande bericht. Vraag in dat geval wat de *nieuwe specifieke titel* moet worden of verzon zelf een creatief alternatief als ze dat vragen.
+2. **BESTAANDE PAGINA AANPASSEN:** Als de gebruiker een tekst/titel wil wijzigen op een bestaande pagina (zoals water.html), gebruik dan actietype "update_page". Maak GEEN nieuwe pagina aan.
+3. **DUIDELIJKHEID:** Geef in het JSON-antwoord duidelijk de "old_text" en "new_text" aan zodat de gebruiker precies ziet wat er vervangen wordt.
 
 ALS GELDIGE ACTIE (Maak pagina of Pas pagina aan) -> Geef JSON (geen extra tekst):
-Voorbeeld 1 (Nieuwe pagina):
-{
-  "is_action": true,
-  "plan": "Nieuwe pagina aanmaken",
-  "actions": [
-    {
-      "type": "create_page", 
-      "file": "water.html", 
-      "blocks": ["hero.html"], 
-      "block_contents": {
-        "hero.html": { "title": "Puur Water", "subtitle": "Altijd verfrissend", "button": "Meer", "href": "#" }
-      },
-      "description": "Water pagina gemaakt"
-    }
-  ]
-}
-
-Voorbeeld 2 (Bestaande pagina aanpassen):
+Voorbeeld (Bestaande pagina aanpassen):
 {
   "is_action": true,
   "plan": "Titel aanpassen op water pagina",
@@ -367,14 +357,15 @@ Voorbeeld 2 (Bestaande pagina aanpassen):
     {
       "type": "update_page",
       "file": "water.html",
-      "find_title": "Oude Titel",
-      "new_title": "Nieuwe Titel",
-      "description": "Titel aangepast op water pagina"
+      "old_text": "Oude Titel",
+      "new_text": "Nieuwe Titel",
+      "description": "Titel gewijzigd van 'Oude Titel' naar 'Nieuwe Titel'"
     }
   ]
 }
 
-ALS VRAAG/FOUT -> Normaal Nederlands antwoord (geen JSON)`;
+ALS ER EXTRA INFO NODIG IS (bijv. als de gebruiker zegt 'andere titel' maar nog geen nieuwe titel heeft genoemd):
+Geef een normaal Nederlands antwoord waarin je vraagt wat de nieuwe titel precies moet worden, of geef direct zelf een mooi alternatief voorstel.`;
 
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -501,14 +492,17 @@ async function executePlan(plan) {
         let parser = new DOMParser();
         let doc = parser.parseFromString(fileObj.content, 'text/html');
 
-        if (action.find_title && action.new_title) {
-          let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
-          for (let h of headings) {
-            if (h.textContent.trim().toLowerCase() === action.find_title.trim().toLowerCase() || h.textContent.includes("Titel hier")) {
-              h.textContent = action.new_title;
-              break;
-            }
+        let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        let updated = false;
+        for (let h of headings) {
+          if (action.old_text && h.textContent.trim().toLowerCase() === action.old_text.trim().toLowerCase()) {
+            h.textContent = action.new_text;
+            updated = true;
+            break;
           }
+        }
+        if (!updated && headings.length > 0 && action.new_text) {
+          headings[0].textContent = action.new_text;
         }
         
         let updatedHtml = "<!DOCTYPE html>\n<html lang=\"nl\">\n" + doc.documentElement.innerHTML + "\n</html>";
@@ -534,6 +528,8 @@ async function processCommand(userText) {
       return;
     }
 
+    conversationHistory.push({ role: "user", content: userText });
+
     let thinkingMsg = addMessage("ai", "Even denken...");
     let aiResponse = await askAI(userText);
     thinkingMsg.remove();
@@ -552,32 +548,43 @@ async function processCommand(userText) {
           let detailsHtml = `
             <div class="space-y-2">
               <p class="font-medium text-white">📋 Plan: ${plan.plan} (<span class="text-blue-400">${fileName}</span>)</p>
-              <div class="text-xs text-neutral-400 bg-neutral-900 p-2.5 rounded border border-neutral-800 space-y-1">
+              <div class="text-xs text-neutral-400 bg-neutral-900 p-2.5 rounded border border-neutral-800 space-y-1.5">
           `;
 
           if (actionItem.type === "create_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken met blokken</p>`;
+            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken</p>`;
           } else if (actionItem.type === "update_page") {
             detailsHtml += `<p><strong>Actie:</strong> Bestaande pagina aanpassen</p>`;
-            if (actionItem.new_title) detailsHtml += `<p><strong>Nieuwe titel:</strong> ${actionItem.new_title}</p>`;
+            if (actionItem.old_text && actionItem.new_text) {
+              detailsHtml += `<p><strong>Vervangen:</strong> <span class="text-red-400 line-through">${actionItem.old_text}</span> ➔ <span class="text-green-400 font-medium">${actionItem.new_text}</span></p>`;
+            } else if (actionItem.new_text) {
+              detailsHtml += `<p><strong>Nieuwe tekst:</strong> <span class="text-green-400 font-medium">${actionItem.new_text}</span></p>`;
+            }
           }
 
           detailsHtml += `
               </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om goed te keuren of <strong>'nee'</strong> om af te wijzen.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om goed te keuren of <strong>'nee'</strong> / geef een alternatief op om aan te passen.</p>
             </div>
           `;
 
           addMessage("ai", detailsHtml, "plan");
           pendingPlan = plan;
+          conversationHistory.push({ role: "assistant", content: JSON.stringify(plan) });
         } else {
-          addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+          let cleanText = aiResponse.replace(/```json|```/g, "").trim();
+          addMessage("ai", cleanText);
+          conversationHistory.push({ role: "assistant", content: cleanText });
         }
       } else {
-        addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
+        let cleanText = aiResponse.replace(/```json|```/g, "").trim();
+        addMessage("ai", cleanText);
+        conversationHistory.push({ role: "assistant", content: cleanText });
       }
     } else if (aiResponse) {
-      addMessage("ai", aiResponse.trim());
+      let cleanText = aiResponse.trim();
+      addMessage("ai", cleanText);
+      conversationHistory.push({ role: "assistant", content: cleanText });
     } else {
       addMessage("ai", "Kon niet antwoorden", "error");
     }
@@ -599,9 +606,9 @@ async function sendMessage(event) {
     let p = pendingPlan;
     pendingPlan = null;
     await executePlan(p);
-  } else if (text.toLowerCase() === "nee" && pendingPlan) {
-    addMessage("ai", "Geweigerd");
+  } else if ((text.toLowerCase() === "nee" || text.toLowerCase().includes("andere titel") || text.toLowerCase().includes("andere")) && pendingPlan) {
     pendingPlan = null;
+    await processCommand(text);
   } else {
     pendingPlan = null;
     await processCommand(text);
