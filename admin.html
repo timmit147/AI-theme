@@ -1,3 +1,89 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Theme Builder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white h-screen flex flex-col">
+
+<header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
+  <div>
+    <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
+    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
+  </div>
+  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+    Instellingen
+  </button>
+</header>
+
+<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
+  <div class="flex items-center justify-center h-full">
+    <div class="text-center">
+      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
+      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
+    </div>
+  </div>
+</main>
+
+<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
+  <input
+    id="user-input"
+    type="text"
+    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
+    placeholder="Geef opdracht..."
+    autocomplete="off"
+  >
+  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
+    Verzenden
+  </button>
+</form>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-sm space-y-4 max-h-[90vh] overflow-y-auto">
+    <h2 class="font-light text-lg">Instellingen</h2>
+
+    <div>
+      <label class="text-xs text-neutral-500 block mb-1">AI API Key (Gemini of OpenAI)</label>
+      <input id="ai-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors" placeholder="AIza... of sk-proj-... of AQ.Ab...">
+      <p class="text-xs text-neutral-600 mt-1">Gemini: AIza... of AQ.Ab... | OpenAI: sk-... of sk-proj-...</p>
+    </div>
+
+    <div>
+      <label class="text-xs text-neutral-500 block mb-1">GitHub Token</label>
+      <input id="github-token" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
+
+    <div>
+      <label class="text-xs text-neutral-500 block mb-1">GitHub User</label>
+      <input id="github-user" value="timmit147" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
+
+    <div>
+      <label class="text-xs text-neutral-500 block mb-1">Repository</label>
+      <input id="github-repo" value="ai-theme" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
+    </div>
+
+    <button onclick="testAPI()" class="w-full bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
+      Verbindingen testen
+    </button>
+    
+    <div id="api-status" class="hidden text-xs space-y-2 mt-2 p-3 bg-neutral-950 border border-neutral-800 rounded">
+    </div>
+
+    <div class="flex justify-end gap-2 pt-4">
+      <button onclick="toggleSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
+        Sluiten
+      </button>
+      <button onclick="saveSettings()" type="button" class="px-4 py-2 bg-white text-black rounded text-sm font-medium hover:bg-neutral-200 transition-colors">
+        Opslaan
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
   aiKey: "",
@@ -241,7 +327,6 @@ async function askAI(userText) {
 
   let existingPageContext = "";
   try {
-    // Probeer de bestaande pagina op te halen voor context behoud
     let targetPage = "kaas.html"; 
     let file = await githubGetFile(targetPage);
     if (file && file.content) {
@@ -650,3 +735,6 @@ async function sendMessage(event) {
   }
 }
 </script>
+
+</body>
+</html>
