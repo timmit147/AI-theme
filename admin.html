@@ -335,16 +335,13 @@ async function askAI(userText) {
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
-KRITIEKE INSTRUCTIES VOOR BLOK-INBOUW & TEKST:
-1. **VERVANG ALLE VELDEN GOED:** Elk blok heeft meerdere onderdelen (zoals een titel, een beschrijving/subtitel en eventueel een knoptekst). Laat geen enkel element leeg of achter met placeholder tekst zoals "Titel hier", "Beschrijving hier" of "Neem contact op". 
-2. **GENEREER SCHOON EN DIRECT:** Schoon de tekst direct op. Plaats geen prefixen zoals "Titel: " of "Subtitel: " letterlijk in de HTML. Vul direct zuivere, professionele koppen en beschrijvende alinea's in.
-3. **KORT & KRACHTIG:** Houd koppen kort (max 4-6 woorden) en beschrijvingen compact (1 tot maximaal 2 zinnen) zodat het perfect in de lay-out past.
-4. Je kunt **ALLEEN TEKST** aanpassen of nieuwe pagina's maken (via type "create_page"). Geen CSS of kleuren wijzigen.
-5. Bestandsnamen moeten eindigen op .html (bijv. "kat.html").
+KRITIEKE INSTRUCTIES VOOR BLOK-INBOUW & VELDEN:
+1. **VERVANG ALLE VELDEN GRONDIG:** Vul elk onderdeel (titel, subtitel/tekst, knoptekst, link/href, alt-tekst van afbeeldingen) volledig in en laat geen placeholder teksten zoals "Titel hier", "Beschrijving hier" staan.
+2. **GEBRUIK GEEN PREFIXEN:** Schrijf de tekst direct (dus géén "Titel: " of "Subtitel: " toevoegen in de waarde zelf).
+3. **ONDERSTEUNING VOOR HREF EN ALT:** Je kunt in de JSON per blok ook een "href" (voor de knop of link) en een "alt" (voor afbeeldingen) opgeven indien gewenst.
+4. Bestandsnamen moeten eindigen op .html (bijv. "appel.html").
 
 USER: "${userText}"
-
-ALS HET OM KLEUREN/STIJLEN GAAT -> Geef een normaal Nederlands antwoord (geen JSON).
 
 ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
 {
@@ -353,24 +350,26 @@ ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
   "actions": [
     {
       "type": "create_page", 
-      "file": "kat.html", 
+      "file": "appel.html", 
       "blocks": ["hero.html", "media-text.html", "text-media.html"], 
       "block_contents": {
         "hero.html": {
-          "title": "Alles over Jouw Kat",
-          "subtitle": "Ontdek handige tips voor voeding, verzorging en gedrag.",
-          "button": "Bekijk Gidsen"
+          "title": "De Lekkerste Verse Appels",
+          "subtitle": "Ontdek alles over verschillende appelsoorten, hun smaak en gezondheidsvoordelen.",
+          "button": "Bekijk Soorten",
+          "href": "#soorten"
         },
         "media-text.html": {
-          "title": "Gezonde Voeding",
-          "text": "Een gelukkige kat begint bij de juiste dagelijkse voeding en voldoende vers drinkwater."
+          "title": "Rijk aan Vitamines",
+          "text": "Appels zitten boordevol vezels en vitamine C voor een gezonde dagelijkse boost.",
+          "alt": "Verse appels in de boomgaard"
         },
         "text-media.html": {
-          "title": "Speelgedrag & Liefde",
-          "text": "Versterk de band met je kat door actief samen te spelen en te zorgen voor een veilige omgeving."
+          "title": "Vers uit de Boomgaard",
+          "text": "Onze appels worden lokaal en duurzaam geteeld voor de allerbeste kwaliteit."
         }
       },
-      "description": "Kat pagina aangemaakt"
+      "description": "Appel pagina aangemaakt"
     }
   ]
 }
@@ -473,20 +472,44 @@ async function executePlan(plan) {
             if (action.block_contents && action.block_contents[blockName]) {
               let c = action.block_contents[blockName];
               
-              // Slimme vervanging van alle velden in de HTML template
+              // Robuuste DOM Parser om de HTML velden feilloos te vervangen
+              let parser = new DOMParser();
+              let doc = parser.parseFromString(blockContent, 'text/html');
+
               if (typeof c === "object") {
-                if (c.title) {
-                  blockContent = blockContent.replace(/<h[1-6][^>]*>.*?<\/h[1-6]>/i, `<h2>${c.title}</h2>`);
+                // Zoek koppen (h1 t/m h6) en vervang de eerste of de hoofdkoppen
+                let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                if (headings.length > 0 && c.title) {
+                  headings[0].textContent = c.title;
                 }
-                if (c.subtitle || c.text) {
-                  let txt = c.subtitle || c.text;
-                  blockContent = blockContent.replace(/<p[^>]*>.*?<\/p>/is, `<p>${txt}</p>`);
+
+                // Zoek paragrafen voor beschrijving/tekst/subtitel
+                let paragraphs = doc.querySelectorAll('p');
+                let subText = c.subtitle || c.text;
+                if (paragraphs.length > 0 && subText) {
+                  paragraphs[0].textContent = subText;
                 }
-                if (c.button) {
-                  blockContent = blockContent.replace(/<a[^>]*>.*?<\/a>/is, `<a href="#">${c.button}</a>`);
+
+                // Zoek knoppen / links voor knoptekst en href
+                let links = doc.querySelectorAll('a, button');
+                if (links.length > 0 && c.button) {
+                  links[0].textContent = c.button;
                 }
+                if (links.length > 0 && c.href) {
+                  links[0].setAttribute('href', c.href);
+                }
+
+                // Zoek afbeeldingen voor alt-tekst
+                let images = doc.querySelectorAll('img');
+                if (images.length > 0 && c.alt) {
+                  images[0].setAttribute('alt', c.alt);
+                }
+
+                blockContent = doc.body.innerHTML;
               } else if (typeof c === "string") {
-                blockContent = blockContent.replace(/<\/h[1-6]>/i, `</h2><p>${c}</p>`);
+                let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                if (headings.length > 0) headings[0].textContent = c;
+                blockContent = doc.body.innerHTML;
               }
             }
             html += blockContent + "\n";
@@ -539,7 +562,6 @@ async function processCommand(userText) {
           let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
           let blockList = actionItem.blocks ? actionItem.blocks.join(", ") : "";
 
-          // Strakke, compacte en overzichtelijke weergave van het plan in de chat
           let detailsHtml = `
             <div class="space-y-2">
               <p class="font-medium text-white">📋 Plan: Pagina maken (<span class="text-blue-400">${fileName}</span>)</p>
@@ -552,10 +574,12 @@ async function processCommand(userText) {
             for (let [block, content] of Object.entries(actionItem.block_contents)) {
               if (typeof content === "object") {
                 let parts = [];
-                if (content.title) parts.id = parts.push(`Titel: ${content.title}`);
+                if (content.title) parts.push(`Titel: ${content.title}`);
                 if (content.subtitle) parts.push(`Subtitel: ${content.subtitle}`);
                 if (content.text) parts.push(`Tekst: ${content.text}`);
                 if (content.button) parts.push(`Knop: ${content.button}`);
+                if (content.href) parts.push(`Href: ${content.href}`);
+                if (content.alt) parts.push(`Alt: ${content.alt}`);
                 detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${parts.join(" | ")}</p>`;
               } else {
                 detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${content}</p>`;
