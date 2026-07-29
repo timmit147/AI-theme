@@ -357,81 +357,50 @@ async function askAI(userText) {
 ${blocksInfo}
 ${imagesInfo}
 
-GESCHIEDENIS VAN HET GESPREK EN HUIDIGE INHOUD:
+GESCHIEDENIS VAN HET GESPREK:
 ${historyText}
 
 HUIDIGE OPDRACHT VAN GEBRUIKER: "${userText}"
 
-STRIKTE REGELS VOOR HET BEHEREN EN AANPASSEN VAN BLOKKEN:
-1. **BEHOUD EXACT ALLE BESTAANDE BLOKKEN**:
-   - Als er al 4 blokken op de pagina staan, MOET je exact 4 blokken teruggeven. Verwijder NOOIT zomaar een blok uit de lijst!
-   - Elk blok in de "blocks" array moet een unieke "id" hebben (bijv: "block_1", "block_2", "block_3", "block_4").
-2. **GERICHTE AANPASSING**:
-   - Als de gebruiker vraagt om "het laatste blok" te veranderen, pas dan ALLEEN de content van dat specifieke laatste blok aan!
-   - Kopiëer voor alle overige blokken de exacte bestaande waarden (title, text, subtitle, button, img_src, etc.) in "content". Zo blijven ze exact hetzelfde!
-3. **DIFF VERGELIJKING (VOOR DE CHAT DISPLAY)**:
-   - Voor elk blok dat je aanpast geef je de gewijzigde waarden én de "old_"-waarden op (bijv: "old_title", "title", "old_text", "text", "old_img_src", "img_src").
-   - Geef per blok aan wat de status is: "status": "modified" (als het veranderd is), "status": "unchanged" (als het identiek blijft), of "status": "added" (als het een gloednieuw toegevoegd blok is).
-4. **GEEN PLACEHOLDERS**: Gebruik nooit "Titel hier" of "Aanpassen". Vul altijd een realistische, kwalitatieve tekst in.
+STRIKTE REGELS:
+1. ALS DE GEBRUIKER OM MEERDERE PAGINA'S VRAAGT (bijv. "Maak 3 pagina's"):
+   - Je MOET voor ELKE pagina een afzonderlijk actie-object toevoegen aan de "actions" array!
+   - Als er om 3 pagina's gevraagd wordt, bevat "actions" EXACT 3 elementen (bijv. action 1 voor stroopwafel.html, action 2 voor gevulde-koek.html, action 3 voor sprits.html).
+2. VOOR ELKE PAGINA VOLLEDIGE CONTENT GEVEN:
+   - Geef voor elke pagina alle blocks en unieke, concrete content op (title, subtitle, text, button, img_src).
+   - Gebruik NOOIT "Titel hier" of leeg laten.
+3. Elk blok heeft status: "added", "modified" of "unchanged".
 
 OUTPUT FORMAT (JSON verplicht):
 {
   "is_action": true,
-  "plan": "Alleen het 4e blok (text-media.html) aanpassen met unieke content en afbeelding, overige 3 blokken blijven 100% ongewijzigd.",
+  "plan": "Drie pagina's maken met elk unieke blocks en content.",
   "actions": [
     {
       "type": "create_page",
-      "file": "koek.html",
+      "file": "stroopwafel.html",
       "blocks": [
         {
           "id": "block_1",
           "file": "hero.html",
-          "status": "unchanged",
-          "content": {
-            "title": "Ambachtelijke Verse Koeken",
-            "subtitle": "De lekkerste versgebakken koeken, bereid volgens traditioneel recept met de fijnste ingrediënten.",
-            "button": "Bekijk Ons Assortiment"
-          }
-        },
-        {
-          "id": "block_2",
-          "file": "media-text.html",
-          "status": "unchanged",
-          "content": {
-            "title": "Met Liefde Gebakken",
-            "text": "Onze bakkers staan elke ochtend vroeg op om de knapperigste gevulde koeken, stroopwafels en zandkoekjes te bakken. Proef de passie en het vakmanschap in elke hap.",
-            "button": "Ons Bakproces",
-            "img_src": "images/istockphoto-1297349747-612x612.jpg"
-          }
-        },
-        {
-          "id": "block_3",
-          "file": "text-media.html",
-          "status": "unchanged",
-          "content": {
-            "title": "Perfect voor Elke Gelegenheid",
-            "text": "Of je nu iets te vieren hebt, een zakelijke bijeenkomst organiseert of gewoon wilt genieten bij de koffie: onze luxe koekpakketten maken elk moment bijzonder.",
-            "button": "Bestel Je Koeken",
-            "img_src": "images/istockphoto-1297349747-612x612.jpg"
-          }
-        },
-        {
-          "id": "block_4",
-          "file": "text-media.html",
-          "status": "modified",
-          "content": {
-            "old_title": "Perfect voor Elke Gelegenheid",
-            "title": "Unieke Seizoensspecialiteiten",
-            "old_text": "Of je nu iets te vieren hebt...",
-            "text": "Ontdek onze maandelijks wisselende themakoeken en exclusieve cadeauboxen voor verjaardagen en feestdagen.",
-            "old_button": "Bestel Je Koeken",
-            "button": "Ontdek Specials",
-            "old_img_src": "images/istockphoto-1297349747-612x612.jpg",
-            "img_src": "images/istockphoto-1297349747-612x612.jpg"
-          }
+          "status": "added",
+          "content": { "title": "Warme Stroopwafels", "subtitle": "Vers uit de ijzers", "button": "Bestel" }
         }
       ],
-      "description": "4e blok bijgewerkt met unieke informatie"
+      "description": "Pagina voor stroopwafels"
+    },
+    {
+      "type": "create_page",
+      "file": "gevulde-koek.html",
+      "blocks": [
+        {
+          "id": "block_1",
+          "file": "hero.html",
+          "status": "added",
+          "content": { "title": "Luxe Gevulde Koeken", "subtitle": "Met 100% amandelspijs", "button": "Bestel" }
+        }
+      ],
+      "description": "Pagina voor gevulde koeken"
     }
   ]
 }`;
@@ -688,20 +657,25 @@ async function processCommand(userText) {
         let plan = JSON.parse(jsonText);
         
         if (plan.is_action && plan.actions) {
-          let actionItem = plan.actions[0];
-          let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
-
           let detailsHtml = `
-            <div class="space-y-3">
+            <div class="space-y-4">
               <p class="font-medium text-white">📋 Plan: ${plan.plan}</p>
-              <div class="text-xs text-neutral-400 bg-neutral-900 p-3 rounded border border-neutral-800 space-y-3">
           `;
 
-          if (actionItem.type === "create_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Pagina samenstellen / bijwerken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
-            
-            if (actionItem.blocks && actionItem.blocks.length > 0) {
-              detailsHtml += `<div class="space-y-2 pt-1 border-t border-neutral-800"><strong class="text-white">Overzicht van alle blocks op deze pagina:</strong>`;
+          // LOOP DOOR ALLE PAGINA-ACTIES IN PLAATS VAN ALLEEN DE EERSTE
+          let pageCount = 1;
+          for (let actionItem of plan.actions) {
+            let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
+
+            detailsHtml += `
+              <div class="text-xs text-neutral-400 bg-neutral-900 p-3 rounded border border-neutral-800 space-y-3">
+                <p class="text-sm font-semibold text-white border-b border-neutral-800 pb-1.5">
+                  📄 Pagina ${pageCount}: <span class="text-blue-400 font-mono">${fileName}.html</span>
+                </p>
+            `;
+
+            if (actionItem.type === "create_page" && actionItem.blocks && actionItem.blocks.length > 0) {
+              detailsHtml += `<div class="space-y-2"><strong class="text-neutral-300">Blocks op deze pagina:</strong>`;
               
               let idx = 1;
               for (let blockObj of actionItem.blocks) {
@@ -741,11 +715,13 @@ async function processCommand(userText) {
               }
               detailsHtml += `</div>`;
             }
+
+            detailsHtml += `</div>`;
+            pageCount++;
           }
 
           detailsHtml += `
-              </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan wat je anders wilt zien.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om al deze pagina's goed te keuren, of geef aan wat je wilt aanpassen.</p>
             </div>
           `;
 
