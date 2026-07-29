@@ -335,41 +335,41 @@ async function askAI(userText) {
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
-KRITIEKE INSTRUCTIES VOOR BLOK-INBOUW & VELDEN:
-1. **VERVANG ALLE VELDEN GRONDIG:** Vul elk onderdeel (titel, subtitel/tekst, knoptekst, link/href, alt-tekst van afbeeldingen) volledig in en laat geen placeholder teksten zoals "Titel hier", "Beschrijving hier" staan.
-2. **GEBRUIK GEEN PREFIXEN:** Schrijf de tekst direct (dus géén "Titel: " of "Subtitel: " toevoegen in de waarde zelf).
-3. **ONDERSTEUNING VOOR HREF EN ALT:** Je kunt in de JSON per blok ook een "href" (voor de knop of link) en een "alt" (voor afbeeldingen) opgeven indien gewenst.
-4. Bestandsnamen moeten eindigen op .html (bijv. "appel.html").
+REGELS VOOR JE TAAK:
+1. **NIEUWE PAGINA MAKEN:** Als de gebruiker vraagt om een nieuwe pagina te maken, gebruik dan actietype "create_page" met de benodigde blocks en vul alle velden (titel, tekst, knoptekst, href, alt) volledig in zonder placeholders.
+2. **BESTAANDE PAGINA AANPASSEN:** Als de gebruiker vraagt om een bestaande pagina aan te passen (bijv. "pas de titel op de water pagina aan naar..."), maak dan **GEEN** nieuwe pagina aan. Gebruik actietype "update_page". Geef in "updates" exact aan welke tekst/titel je wilt vervangen of welke nieuwe waarde er moet komen. Pas alleen de gevraagde velden aan!
 
 USER: "${userText}"
 
-ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
+ALS GELDIGE ACTIE (Maak pagina of Pas pagina aan) -> Geef JSON (geen extra tekst):
+Voorbeeld 1 (Nieuwe pagina):
 {
   "is_action": true,
-  "plan": "Kort overzicht van de geselecteerde pagina en blokken",
+  "plan": "Nieuwe pagina aanmaken",
   "actions": [
     {
       "type": "create_page", 
-      "file": "appel.html", 
-      "blocks": ["hero.html", "media-text.html", "text-media.html"], 
+      "file": "water.html", 
+      "blocks": ["hero.html"], 
       "block_contents": {
-        "hero.html": {
-          "title": "De Lekkerste Verse Appels",
-          "subtitle": "Ontdek alles over verschillende appelsoorten, hun smaak en gezondheidsvoordelen.",
-          "button": "Bekijk Soorten",
-          "href": "#soorten"
-        },
-        "media-text.html": {
-          "title": "Rijk aan Vitamines",
-          "text": "Appels zitten boordevol vezels en vitamine C voor een gezonde dagelijkse boost.",
-          "alt": "Verse appels in de boomgaard"
-        },
-        "text-media.html": {
-          "title": "Vers uit de Boomgaard",
-          "text": "Onze appels worden lokaal en duurzaam geteeld voor de allerbeste kwaliteit."
-        }
+        "hero.html": { "title": "Puur Water", "subtitle": "Altijd verfrissend", "button": "Meer", "href": "#" }
       },
-      "description": "Appel pagina aangemaakt"
+      "description": "Water pagina gemaakt"
+    }
+  ]
+}
+
+Voorbeeld 2 (Bestaande pagina aanpassen):
+{
+  "is_action": true,
+  "plan": "Titel aanpassen op water pagina",
+  "actions": [
+    {
+      "type": "update_page",
+      "file": "water.html",
+      "find_title": "Oude Titel",
+      "new_title": "Nieuwe Titel",
+      "description": "Titel aangepast op water pagina"
     }
   ]
 }
@@ -422,9 +422,7 @@ async function checkGitHubPagesDeployment(url) {
   while (attempts < 120) {
     try {
       const res = await fetch(url + "?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
-      if (res.ok) {
-        return true;
-      }
+      if (res.ok) return true;
     } catch (e) {}
     await new Promise(r => setTimeout(r, 2000));
     attempts++;
@@ -440,6 +438,17 @@ async function executePlan(plan) {
     }
 
     for (let action of plan.actions) {
+      let shortName = action.file ? action.file.replace(/\.html$/i, "") : "pagina";
+      let pageUrl = githubPageUrl(action.file || "index.html");
+
+      let progressDiv = addMessage("ai", `Bezig met verwerken van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
+      let seconds = 0;
+      let timerInterval = setInterval(() => {
+        seconds++;
+        let timerSpan = document.getElementById(`timer-${shortName}`);
+        if (timerSpan) timerSpan.textContent = seconds;
+      }, 1000);
+
       if (action.type === "create_page") {
         let baseName = action.file.replace(/\.html$/i, "");
         let counter = 1;
@@ -449,20 +458,9 @@ async function executePlan(plan) {
           counter++;
         }
         action.file = targetFile;
-      }
+        shortName = action.file.replace(/\.html$/i, "");
+        pageUrl = githubPageUrl(action.file);
 
-      let shortName = action.file.replace(/\.html$/i, "");
-      let pageUrl = githubPageUrl(action.file);
-
-      let progressDiv = addMessage("ai", `Bezig met bouwen en deployen van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
-      let seconds = 0;
-      let timerInterval = setInterval(() => {
-        seconds++;
-        let timerSpan = document.getElementById(`timer-${shortName}`);
-        if (timerSpan) timerSpan.textContent = seconds;
-      }, 1000);
-
-      if (action.type === "create_page") {
         let html = `<!DOCTYPE html>\n<html lang="nl">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${shortName}</title>\n<script src="https://cdn.tailwindcss.com"><\/script>\n</head>\n<body>\n`;
 
         for (let blockName of action.blocks) {
@@ -471,59 +469,50 @@ async function executePlan(plan) {
           if (blockContent) {
             if (action.block_contents && action.block_contents[blockName]) {
               let c = action.block_contents[blockName];
-              
-              // Robuuste DOM Parser om de HTML velden feilloos te vervangen
               let parser = new DOMParser();
               let doc = parser.parseFromString(blockContent, 'text/html');
 
               if (typeof c === "object") {
-                // Zoek koppen (h1 t/m h6) en vervang de eerste of de hoofdkoppen
                 let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                if (headings.length > 0 && c.title) {
-                  headings[0].textContent = c.title;
-                }
+                if (headings.length > 0 && c.title) headings[0].textContent = c.title;
 
-                // Zoek paragrafen voor beschrijving/tekst/subtitel
                 let paragraphs = doc.querySelectorAll('p');
                 let subText = c.subtitle || c.text;
-                if (paragraphs.length > 0 && subText) {
-                  paragraphs[0].textContent = subText;
-                }
+                if (paragraphs.length > 0 && subText) paragraphs[0].textContent = subText;
 
-                // Zoek knoppen / links voor knoptekst en href
                 let links = doc.querySelectorAll('a, button');
-                if (links.length > 0 && c.button) {
-                  links[0].textContent = c.button;
-                }
-                if (links.length > 0 && c.href) {
-                  links[0].setAttribute('href', c.href);
-                }
+                if (links.length > 0 && c.button) links[0].textContent = c.button;
+                if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
 
-                // Zoek afbeeldingen voor alt-tekst
                 let images = doc.querySelectorAll('img');
-                if (images.length > 0 && c.alt) {
-                  images[0].setAttribute('alt', c.alt);
-                }
+                if (images.length > 0 && c.alt) images[0].setAttribute('alt', c.alt);
 
-                blockContent = doc.body.innerHTML;
-              } else if (typeof c === "string") {
-                let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                if (headings.length > 0) headings[0].textContent = c;
                 blockContent = doc.body.innerHTML;
               }
             }
             html += blockContent + "\n";
-          } else {
-            throw new Error("Kan block niet laden: " + blockName);
           }
         }
-
         html += `</body>\n</html>`;
         await githubSaveFile(action.file, html, action.description);
-      } else if (action.type === "replace_text") {
-        let file = await githubGetFile(action.file);
-        let updated = file.content.replace(new RegExp(action.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), action.replace);
-        await githubSaveFile(action.file, updated, action.description);
+
+      } else if (action.type === "update_page") {
+        let fileObj = await githubGetFile(action.file);
+        let parser = new DOMParser();
+        let doc = parser.parseFromString(fileObj.content, 'text/html');
+
+        if (action.find_title && action.new_title) {
+          let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+          for (let h of headings) {
+            if (h.textContent.trim().toLowerCase() === action.find_title.trim().toLowerCase() || h.textContent.includes("Titel hier")) {
+              h.textContent = action.new_title;
+              break;
+            }
+          }
+        }
+        
+        let updatedHtml = "<!DOCTYPE html>\n<html lang=\"nl\">\n" + doc.documentElement.innerHTML + "\n</html>";
+        await githubSaveFile(action.file, updatedHtml, action.description);
       }
 
       await checkGitHubPagesDeployment(pageUrl);
@@ -531,8 +520,7 @@ async function executePlan(plan) {
       clearInterval(timerInterval);
       progressDiv.remove();
 
-      let actionTypeText = action.type === "create_page" ? "gemaakt" : "aangepast";
-      addMessage("ai", `${shortName} pagina ${actionTypeText} — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
+      addMessage("ai", `${shortName} bijgewerkt — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
     }
   } catch (error) {
     addMessage("ai", error.message, "error");
@@ -560,32 +548,18 @@ async function processCommand(userText) {
         if (plan.is_action && plan.actions) {
           let actionItem = plan.actions[0];
           let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
-          let blockList = actionItem.blocks ? actionItem.blocks.join(", ") : "";
 
           let detailsHtml = `
             <div class="space-y-2">
-              <p class="font-medium text-white">📋 Plan: Pagina maken (<span class="text-blue-400">${fileName}</span>)</p>
+              <p class="font-medium text-white">📋 Plan: ${plan.plan} (<span class="text-blue-400">${fileName}</span>)</p>
               <div class="text-xs text-neutral-400 bg-neutral-900 p-2.5 rounded border border-neutral-800 space-y-1">
-                <p><strong>Blokken:</strong> ${blockList}</p>
           `;
 
-          if (actionItem.block_contents) {
-            detailsHtml += `<div class="mt-2 pt-2 border-t border-neutral-800 space-y-1"><p class="text-neutral-300 font-medium">Inhoud per blok:</p>`;
-            for (let [block, content] of Object.entries(actionItem.block_contents)) {
-              if (typeof content === "object") {
-                let parts = [];
-                if (content.title) parts.push(`Titel: ${content.title}`);
-                if (content.subtitle) parts.push(`Subtitel: ${content.subtitle}`);
-                if (content.text) parts.push(`Tekst: ${content.text}`);
-                if (content.button) parts.push(`Knop: ${content.button}`);
-                if (content.href) parts.push(`Href: ${content.href}`);
-                if (content.alt) parts.push(`Alt: ${content.alt}`);
-                detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${parts.join(" | ")}</p>`;
-              } else {
-                detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${content}</p>`;
-              }
-            }
-            detailsHtml += `</div>`;
+          if (actionItem.type === "create_page") {
+            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken met blokken</p>`;
+          } else if (actionItem.type === "update_page") {
+            detailsHtml += `<p><strong>Actie:</strong> Bestaande pagina aanpassen</p>`;
+            if (actionItem.new_title) detailsHtml += `<p><strong>Nieuwe titel:</strong> ${actionItem.new_title}</p>`;
           }
 
           detailsHtml += `
