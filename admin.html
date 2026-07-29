@@ -331,7 +331,7 @@ async function getBlockContent(blockName) {
 
 async function askAI(userText) {
   let blocksInfo = availableBlocks && availableBlocks.length > 0 
-    ? "Beschikbare blocks (gebruik uitsluitend deze bestandsnamen voor nieuwe pagina's): " + availableBlocks.join(", ")
+    ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
@@ -343,25 +343,37 @@ ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
-REGELS VOOR NIEUWE PAGINA'S:
-1. Als de gebruiker een nieuwe pagina wil aanmaken (bijv. "Maak pagina fruit"), kies dan altijd logische blokken uit de beschikbare blocks (zoals een hero.html en text-media.html).
-2. Geef in het plan expliciet aan welke blocks er worden geplaatst en met welke inhoud (titel/tekst), tenzij de gebruiker uitdrukkelijk heeft gezegd dat de pagina *leeg* moet zijn.
+REGELS:
+1. Als de gebruiker een nieuwe pagina wil aanmaken, geef in de JSON response voor **elk** gekozen block exact op welke titels, subtitels/teksten, knoppen (button tekst), hrefs en alt-attributen worden toegevoegd in het "block_contents" object.
+2. Wees volledig transparant in de JSON zodat de gebruiker vooraf elk tekstje en linkje kan inzien.
 3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
 OUTPUT FORMAAT (JSON voor nieuwe pagina):
 {
   "is_action": true,
-  "plan": "Nieuwe pagina 'fruit.html' aanmaken met hero en informatieblokken",
+  "plan": "Nieuwe pagina 'fruit.html' aanmaken",
   "actions": [
     {
       "type": "create_page",
       "file": "fruit.html",
       "blocks": ["hero.html", "text-media.html"],
       "block_contents": {
-        "hero.html": { "title": "Vers & Gezond Fruit", "subtitle": "Ontdek ons dagelijks verse assortiment." },
-        "text-media.html": { "title": "Waarom kiezen voor ons fruit?", "text": "Rechtstreeks van de lokale teler naar jouw tafel." }
+        "hero.html": { 
+          "title": "Vers & Gezond Fruit", 
+          "subtitle": "Ontdek ons dagelijks verse assortiment uit eigen regio.", 
+          "button": "Bekijk assortiment", 
+          "href": "#assortiment", 
+          "alt": "Verse fruitmand" 
+        },
+        "text-media.html": { 
+          "title": "Waarom kiezen voor ons fruit?", 
+          "text": "Rechtstreeks van de lokale teler naar jouw tafel, vol vitamines en smaak.", 
+          "button": "Meer weten", 
+          "href": "contact.html", 
+          "alt": "Plukken van vers fruit" 
+        }
       },
-      "description": "Nieuwe pagina fruit.html aangemaakt met hero en tekstblok"
+      "description": "Nieuwe pagina fruit.html aangemaakt"
     }
   ]
 }
@@ -595,19 +607,35 @@ async function processCommand(userText) {
           let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
 
           let detailsHtml = `
-            <div class="space-y-2">
+            <div class="space-y-3">
               <p class="font-medium text-white">📋 Plan: ${plan.plan}</p>
-              <div class="text-xs text-neutral-400 bg-neutral-900 p-3 rounded border border-neutral-800 space-y-2">
+              <div class="text-xs text-neutral-400 bg-neutral-900 p-3 rounded border border-neutral-800 space-y-3">
           `;
 
           if (actionItem.type === "create_page") {
             detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
+            
             if (actionItem.blocks && actionItem.blocks.length > 0) {
-              detailsHtml += `<div><strong>Geselecteerde blocks:</strong> <ul class="list-disc list-inside mt-1 text-neutral-300">`;
-              for (let b of actionItem.blocks) {
-                detailsHtml += `<li>${b}</li>`;
+              detailsHtml += `<div class="space-y-2 pt-1 border-t border-neutral-800"><strong class="text-white">Geselecteerde blocks & inhoud:</strong>`;
+              
+              for (let blockName of actionItem.blocks) {
+                detailsHtml += `<div class="bg-neutral-950 p-2 rounded border border-neutral-800/80 space-y-1">`;
+                detailsHtml += `<p class="text-blue-400 font-medium">🔹 ${blockName}</p>`;
+                
+                if (actionItem.block_contents && actionItem.block_contents[blockName]) {
+                  let c = actionItem.block_contents[blockName];
+                  if (c.title) detailsHtml += `<p><span class="text-neutral-500">Titel:</span> "${c.title}"</p>`;
+                  if (c.subtitle) detailsHtml += `<p><span class="text-neutral-500">Subtitel:</span> "${c.subtitle}"</p>`;
+                  if (c.text) detailsHtml += `<p><span class="text-neutral-500">Tekst:</span> "${c.text}"</p>`;
+                  if (c.button) detailsHtml += `<p><span class="text-neutral-500">Button:</span> "${c.button}"</p>`;
+                  if (c.href) detailsHtml -> detailsHtml += `<p><span class="text-neutral-500">Href:</span> <code class="text-amber-300">${c.href}</code></p>`;
+                  if (c.alt) detailsHtml += `<p><span class="text-neutral-500">Alt:</span> "${c.alt}"</p>`;
+                } else {
+                  detailsHtml += `<p class="text-neutral-500 italic">Standaard inhoud</p>`;
+                }
+                detailsHtml += `</div>`;
               }
-              detailsHtml += `</ul></div>`;
+              detailsHtml += `</div>`;
             } else {
               detailsHtml += `<p><strong>Blocks:</strong> Geen (lege pagina)</p>`;
             }
@@ -622,7 +650,7 @@ async function processCommand(userText) {
 
           detailsHtml += `
               </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om goed te keuren of geef aan wat er gewijzigd moet worden.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan welke tekst/href je wilt aanpassen.</p>
             </div>
           `;
 
