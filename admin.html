@@ -335,12 +335,11 @@ async function askAI(userText) {
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
-BELANGRIJKE REGELS:
-1. Je kunt **ALLEEN TEKST** aanpassen in bestaande HTML pagina's (via type "replace_text") of nieuwe pagina's maken (via type "create_page").
-2. Je kunt **GEEN KLEUREN, STIJLEN OF CSS** aanpassen. Als een gebruiker vraagt om een kleur te wijzigen, antwoord in plat Nederlands dat dit niet kan.
-3. Bestandsnamen moeten altijd eindigen op .html (bijv. "kip.html").
-4. **GEEN PLACEHOLDER TEKST:** Vul direct echte, professionele en inhoudelijke wervingsteksten in per blok die volledig aansluiten bij de vraag van de gebruiker. Geen "Lorem Ipsum" of algemene opvulling!
-5. Geef in het plan per blok exact de inhoudelijke tekst op die erin geplaatst moet worden.
+STRENGE REGELS VOOR TEKST EN BLOKKEN:
+1. **GEEN PLACEHOLDERS:** Gebruik nooit teksten zoals "Beschrijving hier", "Titel hier", "Tekst naast de afbeelding", "Afbeelding", of "Neem contact op". Elke regel tekst moet volledig, inhoudelijk en direct bruikbaar zijn voor de eindgebruiker.
+2. **KORT & KRACHTIG (PASSEND VOOR DE BLOKKEN):** Zorg dat titels kort zijn (max 4-6 woorden) en beschrijvingen compact (max 1-2 korte zinnen), zodat het netjes en overzichtelijk in de websiteblokken past zonder overstroming.
+3. Je kunt **ALLEEN TEKST** aanpassen in bestaande HTML pagina's of nieuwe pagina's maken (via type "create_page"). Geen CSS of kleuren wijzigen.
+4. Bestandsnamen moeten altijd eindigen op .html (bijv. "hond.html").
 
 USER: "${userText}"
 
@@ -353,14 +352,14 @@ ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
   "actions": [
     {
       "type": "create_page", 
-      "file": "kip.html", 
+      "file": "hond.html", 
       "blocks": ["hero.html", "media-text.html", "text-media.html"], 
       "block_contents": {
-        "hero.html": "Titel: De Lekkerste Kipgerechten | Subtitel: Vers bereid, knapperig en boordevol smaak. Ontdek ons heerlijke aanbod!",
-        "media-text.html": "Titel: Ambachtelijk Gegrilde Kip | Tekst: Onze kip wordt dagelijks vers gemarineerd met een unieke kruidenmix en langzaam gegrild.",
-        "text-media.html": "Titel: Duurzaam & Lokaal | Tekst: Wij werken uitsluitend met biologische kip van lokale boerderijen."
+        "hero.html": "Alles over jouw Trouwe Viervoeter | Van voeding tot training voor een gelukkige hond.",
+        "media-text.html": "Professionele Verzorging | Een gezond leven begint bij goede voeding en liefdevolle aandacht.",
+        "text-media.html": "Effectieve Training | Leer positief communiceren met je hond voor een sterke band."
       },
-      "description": "Kip pagina aangemaakt"
+      "description": "Hond pagina aangemaakt"
     }
   ]
 }
@@ -410,7 +409,7 @@ ALS VRAAG/FOUT -> Normaal Nederlands antwoord (geen JSON)`;
 
 async function checkGitHubPagesDeployment(url) {
   let attempts = 0;
-  while (attempts < 120) { // Maximaal 2 minuten wachten op live deployment pipeline
+  while (attempts < 120) {
     try {
       const res = await fetch(url + "?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
       if (res.ok) {
@@ -510,14 +509,14 @@ async function processCommand(userText) {
         let plan = JSON.parse(jsonText);
         
         if (plan.is_action && plan.actions) {
-          // Mooie, strakke, compacte weergave in de chat zonder dikke muren van tekst
           let actionItem = plan.actions[0];
           let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
           let blockList = actionItem.blocks ? actionItem.blocks.join(", ") : "";
 
+          // Strakke, overzichtelijke en compacte weergave in de chat
           let detailsHtml = `
             <div class="space-y-2">
-              <p class="font-medium text-white">📋 Plan: Nieuwe pagina aanmaken (<span class="text-blue-400">${fileName}</span>)</p>
+              <p class="font-medium text-white">📋 Plan: Pagina maken (<span class="text-blue-400">${fileName}</span>)</p>
               <div class="text-xs text-neutral-400 bg-neutral-900 p-2.5 rounded border border-neutral-800 space-y-1">
                 <p><strong>Blokken:</strong> ${blockList}</p>
           `;
