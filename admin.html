@@ -344,77 +344,97 @@ async function getBlockContent(blockName) {
 
 async function askAI(userText) {
   let blocksInfo = availableBlocks && availableBlocks.length > 0 
-    ? "Beschikbare blocks: " + availableBlocks.join(", ")
+    ? "Beschikbare block bestanden op GitHub: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
   let imagesInfo = availableImages && availableImages.length > 0
     ? "Beschikbare afbeeldingen in map /images: " + availableImages.join(", ")
-    : "Geen afbeeldingen gevonden in map /images. GebruikUnsplash URL indien nodig.";
-
-  let existingPageContext = "";
-  try {
-    let targetPage = "kaas.html"; 
-    let file = await githubGetFile(targetPage);
-    if (file && file.content) {
-      existingPageContext = `HUIDIGE PAGINAINHOUD (${targetPage}):\n${file.content}\n`;
-    }
-  } catch(e) {}
+    : "Geen afbeeldingen gevonden in map /images.";
 
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
 
-  let prompt = `Je bent een professionele AI Website Builder. 
+  let prompt = `Je bent een AI Website Builder.
 ${blocksInfo}
 ${imagesInfo}
 
-${existingPageContext}
-GESCHIEDENIS VAN HET GESPREK:
+GESCHIEDENIS VAN HET GESPREK EN HUIDIGE INHOUD:
 ${historyText}
 
 HUIDIGE OPDRACHT VAN GEBRUIKER: "${userText}"
 
-STRIKTE REGELS VOOR PAGINABOUW & INHOUD (ZEER BELANGRIJK):
-1. **BEHOUD ALLE BLOCKS**: Als je een pagina bijwerkt, MOET je ALLE bestaande blocks behouden in de array "blocks", behalve als de gebruiker expliciet om verwijdering vraagt.
-2. **GEEN STANDAARD/PLACEHOLDER TEKSTEN**: Je mag NOOIT "Titel hier", "Beschrijving hier", "Tekst over het bedrijf", "Afbeelding" of lege placeholders laten staan. Voor ELK blok in de lijst "blocks" MOET jij unieke, hoogwaardige en relevante inhoud schrijven in "block_contents"!
-3. **AFBEELDINGEN KIEZEN**: Als een blok een afbeelding gebruikt, KIES dan een geschikte afbeelding uit de beschikbare afbeeldingenlijst: (${availableImages.join(", ")}). Vul dit in als "img_src": "images/bestandsnaam.jpg".
-4. Vul in "block_contents" voor ELK blok de concrete waarden in: "title", "subtitle", "text", "button", "href", "img_src", "alt".
-5. Retourneer uitsluitend JSON als een actieplan vereist is.
+STRIKTE REGELS VOOR HET BEHEREN EN AANPASSEN VAN BLOKKEN:
+1. **BEHOUD EXACT ALLE BESTAANDE BLOKKEN**:
+   - Als er al 4 blokken op de pagina staan, MOET je exact 4 blokken teruggeven. Verwijder NOOIT zomaar een blok uit de lijst!
+   - Elk blok in de "blocks" array moet een unieke "id" hebben (bijv: "block_1", "block_2", "block_3", "block_4").
+2. **GERICHTE AANPASSING**:
+   - Als de gebruiker vraagt om "het laatste blok" te veranderen, pas dan ALLEEN de content van dat specifieke laatste blok aan!
+   - Kopiëer voor alle overige blokken de exacte bestaande waarden (title, text, subtitle, button, img_src, etc.) in "content". Zo blijven ze exact hetzelfde!
+3. **DIFF VERGELIJKING (VOOR DE CHAT DISPLAY)**:
+   - Voor elk blok dat je aanpast geef je de gewijzigde waarden én de "old_"-waarden op (bijv: "old_title", "title", "old_text", "text", "old_img_src", "img_src").
+   - Geef per blok aan wat de status is: "status": "modified" (als het veranderd is), "status": "unchanged" (als het identiek blijft), of "status": "added" (als het een gloednieuw toegevoegd blok is).
+4. **GEEN PLACEHOLDERS**: Gebruik nooit "Titel hier" of "Aanpassen". Vul altijd een realistische, kwalitatieve tekst in.
 
-OUTPUT FORMAT (JSON voorbeeld):
+OUTPUT FORMAT (JSON verplicht):
 {
   "is_action": true,
-  "plan": "Pagina bijwerken met relevante content voor elk blok en afbeeldingen uit /images",
+  "plan": "Alleen het 4e blok (text-media.html) aanpassen met unieke content en afbeelding, overige 3 blokken blijven 100% ongewijzigd.",
   "actions": [
     {
       "type": "create_page",
-      "file": "kaas.html",
-      "blocks": ["hero.html", "media-text.html", "services.html"],
-      "block_contents": {
-        "hero.html": { 
-          "title": "Exclusieve Gitaren & Apparatuur", 
-          "subtitle": "Ontdek ons aanbod topkwaliteit instrumenten voor elke muzikant.",
-          "button": "Bekijk Collectie",
-          "href": "#services"
+      "file": "koek.html",
+      "blocks": [
+        {
+          "id": "block_1",
+          "file": "hero.html",
+          "status": "unchanged",
+          "content": {
+            "title": "Ambachtelijke Verse Koeken",
+            "subtitle": "De lekkerste versgebakken koeken, bereid volgens traditioneel recept met de fijnste ingrediënten.",
+            "button": "Bekijk Ons Assortiment"
+          }
         },
-        "media-text.html": {
-          "title": "Basgitaren & Accessoires",
-          "text": "Leg de basis voor elke band met onze hoogwaardige basgitaren, versterkers en kabels.",
-          "img_src": "${availableImages[0] || 'images/gitaar.jpg'}",
-          "alt": "Basgitaar in studio"
+        {
+          "id": "block_2",
+          "file": "media-text.html",
+          "status": "unchanged",
+          "content": {
+            "title": "Met Liefde Gebakken",
+            "text": "Onze bakkers staan elke ochtend vroeg op om de knapperigste gevulde koeken, stroopwafels en zandkoekjes te bakken. Proef de passie en het vakmanschap in elke hap.",
+            "button": "Ons Bakproces",
+            "img_src": "images/istockphoto-1297349747-612x612.jpg"
+          }
         },
-        "services.html": {
-          "title": "Onze Diensten & Onderhoud",
-          "text": "Van professionele afstelbeurten tot complete restauraties van je instrument.",
-          "button": "Neem Contact Op",
-          "href": "contact.html"
+        {
+          "id": "block_3",
+          "file": "text-media.html",
+          "status": "unchanged",
+          "content": {
+            "title": "Perfect voor Elke Gelegenheid",
+            "text": "Of je nu iets te vieren hebt, een zakelijke bijeenkomst organiseert of gewoon wilt genieten bij de koffie: onze luxe koekpakketten maken elk moment bijzonder.",
+            "button": "Bestel Je Koeken",
+            "img_src": "images/istockphoto-1297349747-612x612.jpg"
+          }
+        },
+        {
+          "id": "block_4",
+          "file": "text-media.html",
+          "status": "modified",
+          "content": {
+            "old_title": "Perfect voor Elke Gelegenheid",
+            "title": "Unieke Seizoensspecialiteiten",
+            "old_text": "Of je nu iets te vieren hebt...",
+            "text": "Ontdek onze maandelijks wisselende themakoeken en exclusieve cadeauboxen voor verjaardagen en feestdagen.",
+            "old_button": "Bestel Je Koeken",
+            "button": "Ontdek Specials",
+            "old_img_src": "images/istockphoto-1297349747-612x612.jpg",
+            "img_src": "images/istockphoto-1297349747-612x612.jpg"
+          }
         }
-      },
-      "description": "Pagina voorzien van unieke teksten en afbeeldingen uit /images"
+      ],
+      "description": "4e blok bijgewerkt met unieke informatie"
     }
   ]
-}
-
-ALS GEEN ACTIE NODIG IS:
-Geef een helder antwoord in het Nederlands.`;
+}`;
 
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -449,7 +469,7 @@ Geef een helder antwoord in het Nederlands.`;
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], temperature: 0.2 })
+      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], temperature: 0.1 })
     });
     if (!response.ok) throw new Error("OpenAI Foutmelding");
     const data = await response.json();
@@ -531,35 +551,35 @@ async function executePlan(plan) {
         let html = `<!DOCTYPE html>\n<html lang="nl">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${shortName}</title>\n<script src="https://cdn.tailwindcss.com"><\/script>\n</head>\n<body>\n`;
 
         if (action.blocks && Array.isArray(action.blocks)) {
-          for (let blockName of action.blocks) {
+          for (let blockObj of action.blocks) {
+            let blockName = typeof blockObj === "string" ? blockObj : blockObj.file;
             if (!availableBlocks.includes(blockName)) throw new Error("Block niet gevonden: " + blockName);
             let blockContent = await getBlockContent(blockName);
+            
             if (blockContent) {
-              if (action.block_contents && action.block_contents[blockName]) {
-                let c = action.block_contents[blockName];
+              let c = typeof blockObj === "object" && blockObj.content ? blockObj.content : null;
+              if (c) {
                 let parser = new DOMParser();
                 let doc = parser.parseFromString(blockContent, 'text/html');
 
-                if (typeof c === "object") {
-                  let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                  if (headings.length > 0 && c.title) headings[0].textContent = c.title;
+                let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                if (headings.length > 0 && c.title) headings[0].textContent = c.title;
 
-                  let paragraphs = doc.querySelectorAll('p');
-                  let subText = c.subtitle || c.text;
-                  if (paragraphs.length > 0 && subText) paragraphs[0].textContent = subText;
+                let paragraphs = doc.querySelectorAll('p');
+                let subText = c.subtitle || c.text;
+                if (paragraphs.length > 0 && subText) paragraphs[0].textContent = subText;
 
-                  let links = doc.querySelectorAll('a, button');
-                  if (links.length > 0 && c.button) links[0].textContent = c.button;
-                  if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
+                let links = doc.querySelectorAll('a, button');
+                if (links.length > 0 && c.button) links[0].textContent = c.button;
+                if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
 
-                  let images = doc.querySelectorAll('img');
-                  if (images.length > 0) {
-                    if (c.img_src) images[0].setAttribute('src', c.img_src);
-                    if (c.alt) images[0].setAttribute('alt', c.alt);
-                  }
-
-                  blockContent = doc.body.innerHTML;
+                let images = doc.querySelectorAll('img');
+                if (images.length > 0) {
+                  if (c.img_src) images[0].setAttribute('src', c.img_src);
+                  if (c.alt) images[0].setAttribute('alt', c.alt);
                 }
+
+                blockContent = doc.body.innerHTML;
               }
               html += blockContent + "\n";
             }
@@ -681,22 +701,43 @@ async function processCommand(userText) {
             detailsHtml += `<p><strong>Actie:</strong> Pagina samenstellen / bijwerken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
             
             if (actionItem.blocks && actionItem.blocks.length > 0) {
-              detailsHtml += `<div class="space-y-2 pt-1 border-t border-neutral-800"><strong class="text-white">Geselecteerde blocks & inhoud:</strong>`;
+              detailsHtml += `<div class="space-y-2 pt-1 border-t border-neutral-800"><strong class="text-white">Overzicht van alle blocks op deze pagina:</strong>`;
               
-              for (let blockName of actionItem.blocks) {
-                detailsHtml += `<div class="bg-neutral-950 p-2 rounded border border-neutral-800/80 space-y-1">`;
-                detailsHtml += `<p class="text-blue-400 font-medium">🔹 ${blockName}</p>`;
-                
-                if (actionItem.block_contents && actionItem.block_contents[blockName]) {
-                  let c = actionItem.block_contents[blockName];
-                  
-                  if (c.title) detailsHtml += `<p><span class="text-neutral-500">Titel:</span> "${c.title}"</p>`;
-                  if (c.subtitle) detailsHtml += `<p><span class="text-neutral-500">Subtitel:</span> "${c.subtitle}"</p>`;
-                  if (c.text) detailsHtml += `<p><span class="text-neutral-500">Tekst:</span> "${c.text}"</p>`;
-                  if (c.button) detailsHtml += `<p><span class="text-neutral-500">Knop:</span> "${c.button}"</p>`;
-                  if (c.img_src) detailsHtml += `<p><span class="text-neutral-500">Afbeelding:</span> <span class="text-green-400">"${c.img_src}"</span></p>`;
+              let idx = 1;
+              for (let blockObj of actionItem.blocks) {
+                let bFile = typeof blockObj === "string" ? blockObj : blockObj.file;
+                let bStatus = blockObj.status || "unchanged";
+                let c = blockObj.content || {};
+
+                let badgeHtml = "";
+                if (bStatus === "modified") {
+                  badgeHtml = `<span class="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">GEWIJZIGD</span>`;
+                } else if (bStatus === "added") {
+                  badgeHtml = `<span class="bg-blue-950 text-blue-400 border border-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">NIEUW</span>`;
+                } else {
+                  badgeHtml = `<span class="bg-neutral-800 text-neutral-400 border border-neutral-700 px-2 py-0.5 rounded text-[10px] font-medium">ONGEWIJZIGD</span>`;
                 }
+
+                detailsHtml += `<div class="bg-neutral-950 p-2.5 rounded border ${bStatus === 'modified' ? 'border-emerald-900/60' : 'border-neutral-800'} space-y-1">`;
+                detailsHtml += `<div class="flex items-center justify-between"><p class="text-blue-400 font-medium">Blok ${idx}: 🔹 ${bFile}</p>${badgeHtml}</div>`;
+                
+                const renderDiffField = (label, oldVal, newVal) => {
+                  if (oldVal && newVal && oldVal !== newVal) {
+                    return `<p class="mt-0.5"><span class="text-neutral-500">${label}:</span> <span class="text-red-400/80 line-through">"${oldVal}"</span> ➔ <span class="text-emerald-400 font-medium">"${newVal}"</span></p>`;
+                  } else if (newVal) {
+                    return `<p class="mt-0.5"><span class="text-neutral-500">${label}:</span> "${newVal}"</p>`;
+                  }
+                  return "";
+                };
+
+                detailsHtml += renderDiffField("Titel", c.old_title, c.title);
+                detailsHtml += renderDiffField("Subtitel", c.old_subtitle, c.subtitle);
+                detailsHtml += renderDiffField("Tekst", c.old_text, c.text);
+                detailsHtml += renderDiffField("Knop", c.old_button, c.button);
+                detailsHtml += renderDiffField("Afbeelding", c.old_img_src, c.img_src);
+
                 detailsHtml += `</div>`;
+                idx++;
               }
               detailsHtml += `</div>`;
             }
@@ -704,7 +745,7 @@ async function processCommand(userText) {
 
           detailsHtml += `
               </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan wat je wilt aanpassen.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan wat je anders wilt zien.</p>
             </div>
           `;
 
