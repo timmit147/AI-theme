@@ -344,14 +344,14 @@ ${historyText}
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
 REGELS:
-1. Als de gebruiker een aanpassing vraagt op een eerdere pagina-aanmaak (bijv. tekst, titel of href aanpassen), genereer dan **altijd** opnieuw het volledige actieplan voor het bouwen/updaten van de pagina inclusief alle blocks en de bijbehorende inhoud (block_contents) zodat de gebruiker het volledige overzicht te zien krijgt.
-2. Wees volledig transparant in de JSON met alle titels, subtitels, teksten, knoppen, hrefs en alt-attributen per block.
+1. Als de gebruiker vraagt om een aanpassing op een eerdere pagina (zoals een titel, tekst of href wijzigen in een block), geef dan **altijd** het volledige actieplan terug waarin de *hele* pagina opnieuw wordt samengesteld met alle blocks.
+2. Geef in de JSON per block ook de eventuele oude waarde mee in een veld "old_title" (of "old_subtitle", "old_text", etc.) als er een wijziging plaatsvindt ten opzichte van de vorige versie, zodat we een duidelijke diff (rood/groen) kunnen tonen. Als er niets verandert, is dat veld niet nodig.
 3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAT (JSON voor volledige pagina actieplan):
+OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
 {
   "is_action": true,
-  "plan": "Nieuwe pagina 'fruit.html' aanmaken met aangepaste hero titel",
+  "plan": "Pagina 'fruit.html' bijwerken: hero titel aanpassen",
   "actions": [
     {
       "type": "create_page",
@@ -359,6 +359,7 @@ OUTPUT FORMAT (JSON voor volledige pagina actieplan):
       "blocks": ["hero.html", "media-text.html", "text-media.html"],
       "block_contents": {
         "hero.html": { 
+          "old_title": "Vers & Gezond Fruit",
           "title": "Het Lekkerste Vers Fruit, Elke Dag", 
           "subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.", 
           "button": "Bekijk Ons Aanbod", 
@@ -380,7 +381,7 @@ OUTPUT FORMAT (JSON voor volledige pagina actieplan):
           "alt": "Verse aardbeien en rode appels" 
         }
       },
-      "description": "Pagina fruit.html aangemaakt met bijgewerkte hero titel"
+      "description": "Hero titel gewijzigd op fruit.html"
     }
   ]
 }
@@ -624,12 +625,24 @@ async function processCommand(userText) {
                 
                 if (actionItem.block_contents && actionItem.block_contents[blockName]) {
                   let c = actionItem.block_contents[blockName];
-                  if (c.title) detailsHtml += `<p><span class="text-neutral-500">Titel:</span> "${c.title}"</p>`;
-                  if (c.subtitle) detailsHtml += `<p><span class="text-neutral-500">Subtitel:</span> "${c.subtitle}"</p>`;
-                  if (c.text) detailsHtml += `<p><span class="text-neutral-500">Tekst:</span> "${c.text}"</p>`;
-                  if (c.button) detailsHtml += `<p><span class="text-neutral-500">Button:</span> "${c.button}"</p>`;
-                  if (c.href) detailsHtml += `<p><span class="text-neutral-500">Href:</span> <code class="text-amber-300">${c.href}</code></p>`;
-                  if (c.alt) detailsHtml += `<p><span class="text-neutral-500">Alt:</span> "${c.alt}"</p>`;
+                  
+                  // Helper voor diff weergave (rood/groen)
+                  const renderDiffField = (label, oldVal, newVal) => {
+                    if (oldVal && oldVal !== newVal) {
+                      return `<p><span class="text-neutral-500">${label}:</span> <span class="text-red-400 line-through">"${oldVal}"</span> ➔ <span class="text-green-400 font-medium">"${newVal}"</span></p>`;
+                    } else if (newVal) {
+                      return `<p><span class="text-neutral-500">${label}:</span> "${newVal}"</p>`;
+                    }
+                    return "";
+                  };
+
+                  detailsHtml += renderDiffField("Titel", c.old_title, c.title);
+                  detailsHtml += renderDiffField("Subtitel", c.old_subtitle, c.subtitle);
+                  detailsHtml += renderDiffField("Tekst", c.old_text, c.text);
+                  detailsHtml += renderDiffField("Button", c.old_button, c.button);
+                  detailsHtml += renderDiffField("Href", c.old_href, c.href);
+                  detailsHtml += renderDiffField("Alt", c.old_alt, c.alt);
+
                 } else {
                   detailsHtml += `<p class="text-neutral-500 italic">Standaard inhoud</p>`;
                 }
