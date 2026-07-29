@@ -334,24 +334,34 @@ async function askAI(userText) {
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
+  // Haal indien mogelijk de bestaande inhoud van de pagina op als deze al bestaat, zodat de AI de exacte huidige inhoud kent en kan vergelijken voor een correcte diff!
+  let existingPageContent = "";
+  let targetFileName = "fruit.html"; // of dynamisch afleiden indien nodig
+  if (userText.toLowerCase().includes("fruit")) {
+    try {
+      let fileData = await githubGetFile("fruit.html");
+      existingPageContent = "\nBESTAANDE INHOUD VAN fruit.html:\n" + fileData.content + "\n";
+    } catch(e) {}
+  }
+
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
-
+${existingPageContent}
 GESCHIEDENIS VAN HET GESPREK:
 ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
 REGELS:
-1. Als de gebruiker vraagt om een aanpassing op een eerdere pagina (zoals een titel, tekst of href wijzigen in een block), geef dan **altijd** het volledige actieplan terug waarin de *hele* pagina opnieuw wordt samengesteld met alle blocks.
-2. Geef in de JSON per block ook de eventuele oude waarde mee in een veld "old_title" (of "old_subtitle", "old_text", etc.) als er een wijziging plaatsvindt ten opzichte van de vorige versie, zodat we een duidelijke diff (rood/groen) kunnen tonen. Als er niets verandert, is dat veld niet nodig.
+1. Als de gebruiker vraagt om een wijziging op een bestaande pagina (zoals een titel, tekst of href aanpassen), haal dan de volledige paginasamenstelling op en retourneer een actieplan om de pagina volledig bij te werken.
+2. Geef in de JSON per gewijzigd veld **altijd** zowel de oude waarde mee in bijvoorbeeld "old_title" als de nieuwe waarde in "title" (en idem voor subtitle, text, button, href, alt), zodat we een heldere rood/groen diff kunnen tonen.
 3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
+OUTPUT FORMAT (JSON voor volledige update met diff):
 {
   "is_action": true,
-  "plan": "Pagina 'fruit.html' bijwerken: hero titel aanpassen",
+  "plan": "Pagina 'fruit.html' bijwerken met gewijzigde hero titel",
   "actions": [
     {
       "type": "create_page",
@@ -362,9 +372,13 @@ OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
           "old_title": "Vers & Gezond Fruit",
           "title": "Het Lekkerste Vers Fruit, Elke Dag", 
           "subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.", 
+          "old_subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.",
           "button": "Bekijk Ons Aanbod", 
+          "old_button": "Bekijk Ons Aanbod",
           "href": "#assortiment", 
-          "alt": "Kleurrijke schaal met vers fruit" 
+          "old_href": "#assortiment",
+          "alt": "Kleurrijke schaal met vers fruit",
+          "old_alt": "Kleurrijke schaal met vers fruit"
         },
         "media-text.html": { 
           "title": "Onze Lokale Telers", 
@@ -381,7 +395,7 @@ OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
           "alt": "Verse aardbeien en rode appels" 
         }
       },
-      "description": "Hero titel gewijzigd op fruit.html"
+      "description": "Pagina fruit.html volledig bijgewerkt met nieuwe hero titel"
     }
   ]
 }
@@ -454,7 +468,7 @@ async function executePlan(plan) {
       let shortName = action.file ? action.file.replace(/\.html$/i, "") : "pagina";
       let pageUrl = githubPageUrl(action.file || "index.html");
 
-      let progressDiv = addMessage("ai", `Bezig met verwerken van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
+      let progressDiv = addMessage("ai", `Bezig met verwerken en deployen van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
       let seconds = 0;
       let timerInterval = setInterval(() => {
         seconds++;
@@ -526,12 +540,13 @@ async function executePlan(plan) {
         await githubSaveFile(action.file, updatedHtml, action.description);
       }
 
+      // Wacht streng tot GitHub Pages live is voordat de voortgangmelding verdwijnt en het succesbericht verschijnt
       await checkGitHubPagesDeployment(pageUrl);
 
       clearInterval(timerInterval);
       progressDiv.remove();
 
-      addMessage("ai", `${shortName} bijgewerkt — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
+      addMessage("ai", `${shortName} succesvol bijgewerkt en online — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
     }
   } catch (error) {
     addMessage("ai", error.message, "error");
@@ -626,7 +641,6 @@ async function processCommand(userText) {
                 if (actionItem.block_contents && actionItem.block_contents[blockName]) {
                   let c = actionItem.block_contents[blockName];
                   
-                  // Helper voor diff weergave (rood/groen)
                   const renderDiffField = (label, oldVal, newVal) => {
                     if (oldVal && oldVal !== newVal) {
                       return `<p><span class="text-neutral-500">${label}:</span> <span class="text-red-400 line-through">"${oldVal}"</span> ➔ <span class="text-green-400 font-medium">"${newVal}"</span></p>`;
