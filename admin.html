@@ -47,8 +47,8 @@
 
     <div>
       <label class="text-xs text-neutral-500 block mb-1">AI API Key (Gemini of OpenAI)</label>
-      <input id="ai-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors" placeholder="AIza... of sk-proj-... of AQ.Ab...">
-      <p class="text-xs text-neutral-600 mt-1">Gemini: AIza... of AQ.Ab... | OpenAI: sk-... of sk-proj-...</p>
+      <input id="ai-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors" placeholder="AIza... of sk-proj-...">
+      <p class="text-xs text-neutral-600 mt-1">Gemini: AIza... | OpenAI: sk-...</p>
     </div>
 
     <div>
@@ -94,6 +94,7 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
 };
 
 let availableBlocks = [];
+let availableImages = [];
 let pendingPlan = null;
 let conversationHistory = [];
 
@@ -114,6 +115,7 @@ window.onload = async function() {
   document.getElementById("github-repo").value = config.repo;
   
   await loadAvailableBlocks();
+  await loadAvailableImages();
 };
 
 async function getBestGeminiModel(apiKey) {
@@ -237,6 +239,26 @@ async function loadAvailableBlocks() {
   }
 }
 
+async function loadAvailableImages() {
+  try {
+    if (!config.githubToken) return;
+    const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/images`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${config.githubToken}`, Accept: "application/vnd.github+json" }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        availableImages = data
+          .filter(item => item && item.name && /\.(jpg|jpeg|png|webp|svg|gif)$/i.test(item.name))
+          .map(item => `images/${item.name}`);
+      }
+    }
+  } catch (e) {
+    availableImages = [];
+  }
+}
+
 function toggleSettings() {
   document.getElementById("settings-modal").classList.toggle("hidden");
 }
@@ -325,6 +347,10 @@ async function askAI(userText) {
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
+  let imagesInfo = availableImages && availableImages.length > 0
+    ? "Beschikbare afbeeldingen in map /images: " + availableImages.join(", ")
+    : "Geen afbeeldingen gevonden in map /images. GebruikUnsplash URL indien nodig.";
+
   let existingPageContext = "";
   try {
     let targetPage = "kaas.html"; 
@@ -336,37 +362,53 @@ async function askAI(userText) {
 
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
 
-  let prompt = `Je bent een AI Website Builder. ${blocksInfo}
+  let prompt = `Je bent een professionele AI Website Builder. 
+${blocksInfo}
+${imagesInfo}
 
 ${existingPageContext}
 GESCHIEDENIS VAN HET GESPREK:
 ${historyText}
 
-HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
+HUIDIGE OPDRACHT VAN GEBRUIKER: "${userText}"
 
-STRIKTE REGELS VOOR BEHOUD VAN DE PAGINA:
-1. Als je een pagina bijwerkt, MOET je ALLE bestaande blocks die op de pagina staan behouden in de array "blocks", TENSEIJ de gebruiker specifiek vraagt om een block te verwijderen.
-2. Pas uitsluitend de gevraagde waarden aan in "block_contents". Laat alle niet-gewijzigde blokken/teksten zoals ze zijn.
-3. Geef per gewijzigde waarde ook de oude waarde mee ("old_title", "old_subtitle", "old_text", etc.).
-4. Retourneer uitsluitend JSON als een actieplan vereist is.
+STRIKTE REGELS VOOR PAGINABOUW & INHOUD (ZEER BELANGRIJK):
+1. **BEHOUD ALLE BLOCKS**: Als je een pagina bijwerkt, MOET je ALLE bestaande blocks behouden in de array "blocks", behalve als de gebruiker expliciet om verwijdering vraagt.
+2. **GEEN STANDAARD/PLACEHOLDER TEKSTEN**: Je mag NOOIT "Titel hier", "Beschrijving hier", "Tekst over het bedrijf", "Afbeelding" of lege placeholders laten staan. Voor ELK blok in de lijst "blocks" MOET jij unieke, hoogwaardige en relevante inhoud schrijven in "block_contents"!
+3. **AFBEELDINGEN KIEZEN**: Als een blok een afbeelding gebruikt, KIES dan een geschikte afbeelding uit de beschikbare afbeeldingenlijst: (${availableImages.join(", ")}). Vul dit in als "img_src": "images/bestandsnaam.jpg".
+4. Vul in "block_contents" voor ELK blok de concrete waarden in: "title", "subtitle", "text", "button", "href", "img_src", "alt".
+5. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAT (JSON voorbeeld voor pagina update met behoud van álle blocks):
+OUTPUT FORMAT (JSON voorbeeld):
 {
   "is_action": true,
-  "plan": "Titel aanpassen in de Hero block met behoud van overige blocks",
+  "plan": "Pagina bijwerken met relevante content voor elk blok en afbeeldingen uit /images",
   "actions": [
     {
       "type": "create_page",
       "file": "kaas.html",
-      "blocks": ["hero.html", "media-text.html", "text-media.html"],
+      "blocks": ["hero.html", "media-text.html", "services.html"],
       "block_contents": {
         "hero.html": { 
-          "old_title": "De Wonderlijke Wereld van Vogels",
-          "title": "Vogels", 
-          "subtitle": "Alles over bijzondere vogelsoorten..."
+          "title": "Exclusieve Gitaren & Apparatuur", 
+          "subtitle": "Ontdek ons aanbod topkwaliteit instrumenten voor elke muzikant.",
+          "button": "Bekijk Collectie",
+          "href": "#services"
+        },
+        "media-text.html": {
+          "title": "Basgitaren & Accessoires",
+          "text": "Leg de basis voor elke band met onze hoogwaardige basgitaren, versterkers en kabels.",
+          "img_src": "${availableImages[0] || 'images/gitaar.jpg'}",
+          "alt": "Basgitaar in studio"
+        },
+        "services.html": {
+          "title": "Onze Diensten & Onderhoud",
+          "text": "Van professionele afstelbeurten tot complete restauraties van je instrument.",
+          "button": "Neem Contact Op",
+          "href": "contact.html"
         }
       },
-      "description": "Hero titel aangepast naar Vogels"
+      "description": "Pagina voorzien van unieke teksten en afbeeldingen uit /images"
     }
   ]
 }
@@ -511,7 +553,10 @@ async function executePlan(plan) {
                   if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
 
                   let images = doc.querySelectorAll('img');
-                  if (images.length > 0 && c.alt) images[0].setAttribute('alt', c.alt);
+                  if (images.length > 0) {
+                    if (c.img_src) images[0].setAttribute('src', c.img_src);
+                    if (c.alt) images[0].setAttribute('alt', c.alt);
+                  }
 
                   blockContent = doc.body.innerHTML;
                 }
@@ -645,43 +690,21 @@ async function processCommand(userText) {
                 if (actionItem.block_contents && actionItem.block_contents[blockName]) {
                   let c = actionItem.block_contents[blockName];
                   
-                  const renderDiffField = (label, oldVal, newVal) => {
-                    if (oldVal && oldVal !== newVal) {
-                      return `<p><span class="text-neutral-500">${label}:</span> <span class="text-red-400 line-through">"${oldVal}"</span> ➔ <span class="text-green-400 font-medium">"${newVal}"</span></p>`;
-                    } else if (newVal) {
-                      return `<p><span class="text-neutral-500">${label}:</span> "${newVal}"</p>`;
-                    }
-                    return "";
-                  };
-
-                  detailsHtml += renderDiffField("Titel", c.old_title, c.title);
-                  detailsHtml += renderDiffField("Subtitel", c.old_subtitle, c.subtitle);
-                  detailsHtml += renderDiffField("Tekst", c.old_text, c.text);
-                  detailsHtml += renderDiffField("Button", c.old_button, c.button);
-                  detailsHtml += renderDiffField("Href", c.old_href, c.href);
-                  detailsHtml += renderDiffField("Alt", c.old_alt, c.alt);
-
-                } else {
-                  detailsHtml += `<p class="text-neutral-500 italic">Behouden met bestaande inhoud</p>`;
+                  if (c.title) detailsHtml += `<p><span class="text-neutral-500">Titel:</span> "${c.title}"</p>`;
+                  if (c.subtitle) detailsHtml += `<p><span class="text-neutral-500">Subtitel:</span> "${c.subtitle}"</p>`;
+                  if (c.text) detailsHtml += `<p><span class="text-neutral-500">Tekst:</span> "${c.text}"</p>`;
+                  if (c.button) detailsHtml += `<p><span class="text-neutral-500">Knop:</span> "${c.button}"</p>`;
+                  if (c.img_src) detailsHtml += `<p><span class="text-neutral-500">Afbeelding:</span> <span class="text-green-400">"${c.img_src}"</span></p>`;
                 }
                 detailsHtml += `</div>`;
               }
               detailsHtml += `</div>`;
-            } else {
-              detailsHtml += `<p><strong>Blocks:</strong> Geen (lege pagina)</p>`;
-            }
-          } else if (actionItem.type === "update_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Bestaande pagina aanpassen (<span class="text-blue-400">${fileName}.html</span>)</p>`;
-            if (actionItem.old_text && actionItem.new_text) {
-              detailsHtml += `<p><strong>Vervangen:</strong> <span class="text-red-400 line-through">${actionItem.old_text}</span> ➔ <span class="text-green-400 font-medium">${actionItem.new_text}</span></p>`;
-            } else if (actionItem.new_text) {
-              detailsHtml += `<p><strong>Nieuwe tekst:</strong> <span class="text-green-400 font-medium">${actionItem.new_text}</span></p>`;
             }
           }
 
           detailsHtml += `
               </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan welke tekst/href je wilt aanpassen.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om dit goed te keuren of geef aan wat je wilt aanpassen.</p>
             </div>
           `;
 
@@ -723,12 +746,6 @@ async function sendMessage(event) {
     let p = pendingPlan;
     pendingPlan = null;
     await executePlan(p);
-  } else if ((text.toLowerCase() === "nee" || text.toLowerCase().includes("andere") || /^\d+$/.test(text)) && pendingPlan && text.toLowerCase() !== "ja") {
-    pendingPlan = null;
-    await processCommand(text);
-  } else if (pendingPlan && text.toLowerCase() !== "ja") {
-    pendingPlan = null;
-    await processCommand(text);
   } else {
     pendingPlan = null;
     await processCommand(text);
