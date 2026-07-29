@@ -343,13 +343,12 @@ ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
-BELANGRIJKE INSTRUCTIES:
-1. **CONTEXT BEHOUDEN:** Als de gebruiker zegt "andere titel", "nee een andere", of een vergelijkbare correctie geeft op een vorig plan, begrijp dan dat dit betrekking heeft op de pagina en het element uit het voorgaande bericht. Vraag in dat geval wat de *nieuwe specifieke titel* moet worden of verzon zelf een creatief alternatief als ze dat vragen.
-2. **BESTAANDE PAGINA AANPASSEN:** Als de gebruiker een tekst/titel wil wijzigen op een bestaande pagina (zoals water.html), gebruik dan actietype "update_page". Maak GEEN nieuwe pagina aan.
-3. **DUIDELIJKHEID:** Geef in het JSON-antwoord duidelijk de "old_text" en "new_text" aan zodat de gebruiker precies ziet wat er vervangen wordt.
+REGELS:
+1. **ALTIJD EEN PLAN MAKEN:** Als de gebruiker reageert op een optie (bijv. "1" of kiest uit suggesties) of een wijziging vraagt, genereer dan **ALTIJD** een JSON actieplan om de wijziging voor te stellen ter goedkeuring. Voer nooit direct acties uit zonder plan.
+2. **BESTAANDE PAGINA AANPASSEN:** Gebruik actietype "update_page" als er op een bestaande pagina (zoals water.html) iets gewijzigd moet worden.
+3. **JSON FORMAT:** Geef uitsluitend JSON terug wanneer een actie of optie gekozen is.
 
-ALS GELDIGE ACTIE (Maak pagina of Pas pagina aan) -> Geef JSON (geen extra tekst):
-Voorbeeld (Bestaande pagina aanpassen):
+OUTPUT FORMAAT (JSON):
 {
   "is_action": true,
   "plan": "Titel aanpassen op water pagina",
@@ -358,14 +357,14 @@ Voorbeeld (Bestaande pagina aanpassen):
       "type": "update_page",
       "file": "water.html",
       "old_text": "Oude Titel",
-      "new_text": "Nieuwe Titel",
-      "description": "Titel gewijzigd van 'Oude Titel' naar 'Nieuwe Titel'"
+      "new_text": "Gekozen Nieuwe Titel",
+      "description": "Titel gewijzigd naar Gekozen Nieuwe Titel"
     }
   ]
 }
 
-ALS ER EXTRA INFO NODIG IS (bijv. als de gebruiker zegt 'andere titel' maar nog geen nieuwe titel heeft genoemd):
-Geef een normaal Nederlands antwoord waarin je vraagt wat de nieuwe titel precies moet worden, of geef direct zelf een mooi alternatief voorstel.`;
+ALS GEEN ACTIE NODIG IS (bijv. gewone vraag/uitleg):
+Geef een helder antwoord in het Nederlands. Als je suggesties geeft, presenteer deze dan duidelijk genummerd zodat de gebruiker er een kan kiezen.`;
 
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -521,6 +520,54 @@ async function executePlan(plan) {
   }
 }
 
+function formatStyledResponse(text) {
+  let cleaned = text.replace(/```json|```/g, "").trim();
+  
+  // Transformeer genummerde suggesties (bijv. "1. **Titel**") naar mooie styled blokjes
+  let lines = cleaned.split("\n");
+  let htmlOutput = `<div class="space-y-3"><p class="text-neutral-200">${lines[0]}</p>`;
+  
+  let optionsHtml = `<div class="grid grid-cols-1 gap-2 mt-2">`;
+  let hasOptions = false;
+
+  for (let i = 1; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line) continue;
+    
+    // Check of het een optie/nummer is zoals "1. Tekst"
+    let match = line.match(/^(\d+[\.\)]|\-)\s*(.*)/);
+    if (match) {
+      hasOptions = true;
+      let optNum = match[1].replace(/[\.\)]/, "");
+      let optText = match[2].replace(/\*\*/g, ""); // Verwijder bold asterisks voor netheid
+      optionsHtml += `
+        <div onclick="selectSuggestion('${optNum}')" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-600 p-2.5 rounded cursor-pointer transition-all flex items-center gap-3">
+          <span class="bg-neutral-800 text-neutral-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium">${optNum}</span>
+          <span class="text-sm text-white font-medium">${optText}</span>
+        </div>
+      `;
+    } else {
+      optionsHtml += `<p class="text-xs text-neutral-400 mt-2">${line.replace(/\*\*/g, "")}</p>`;
+    }
+  }
+  optionsHtml += `</div>`;
+
+  if (hasOptions) {
+    htmlOutput += optionsHtml;
+  } else {
+    htmlOutput = `<div class="text-sm text-neutral-200 leading-relaxed">${cleaned.replace(/\*\*/g, "").replace(/\n/g, "<br>")}</div>`;
+  }
+  
+  htmlOutput += `</div>`;
+  return htmlOutput;
+}
+
+function selectSuggestion(num) {
+  document.getElementById("user-input").value = num;
+  let form = document.querySelector("form");
+  form.dispatchEvent(new Event("submit", { cancelable: true }));
+}
+
 async function processCommand(userText) {
   try {
     if (!config.aiKey) {
@@ -572,19 +619,19 @@ async function processCommand(userText) {
           pendingPlan = plan;
           conversationHistory.push({ role: "assistant", content: JSON.stringify(plan) });
         } else {
-          let cleanText = aiResponse.replace(/```json|```/g, "").trim();
-          addMessage("ai", cleanText);
-          conversationHistory.push({ role: "assistant", content: cleanText });
+          let formattedHtml = formatStyledResponse(aiResponse);
+          addMessage("ai", formattedHtml);
+          conversationHistory.push({ role: "assistant", content: aiResponse });
         }
       } else {
-        let cleanText = aiResponse.replace(/```json|```/g, "").trim();
-        addMessage("ai", cleanText);
-        conversationHistory.push({ role: "assistant", content: cleanText });
+        let formattedHtml = formatStyledResponse(aiResponse);
+        addMessage("ai", formattedHtml);
+        conversationHistory.push({ role: "assistant", content: aiResponse });
       }
     } else if (aiResponse) {
-      let cleanText = aiResponse.trim();
-      addMessage("ai", cleanText);
-      conversationHistory.push({ role: "assistant", content: cleanText });
+      let formattedHtml = formatStyledResponse(aiResponse);
+      addMessage("ai", formattedHtml);
+      conversationHistory.push({ role: "assistant", content: aiResponse });
     } else {
       addMessage("ai", "Kon niet antwoorden", "error");
     }
@@ -606,7 +653,11 @@ async function sendMessage(event) {
     let p = pendingPlan;
     pendingPlan = null;
     await executePlan(p);
-  } else if ((text.toLowerCase() === "nee" || text.toLowerCase().includes("andere titel") || text.toLowerCase().includes("andere")) && pendingPlan) {
+  } else if ((text.toLowerCase() === "nee" || text.toLowerCase().includes("andere") || /^\d+$/.test(text)) && pendingPlan && text.toLowerCase() !== "ja") {
+    // Als er een pending plan is en de gebruiker kiest een optienummer of zegt 'andere', reset plan en laat AI verwerken
+    pendingPlan = null;
+    await processCommand(text);
+  } else if (pendingPlan && text.toLowerCase() !== "ja") {
     pendingPlan = null;
     await processCommand(text);
   } else {
