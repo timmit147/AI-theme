@@ -344,36 +344,43 @@ ${historyText}
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
 REGELS:
-1. Als de gebruiker een nieuwe pagina wil aanmaken, geef in de JSON response voor **elk** gekozen block exact op welke titels, subtitels/teksten, knoppen (button tekst), hrefs en alt-attributen worden toegevoegd in het "block_contents" object.
-2. Wees volledig transparant in de JSON zodat de gebruiker vooraf elk tekstje en linkje kan inzien.
+1. Als de gebruiker een aanpassing vraagt op een eerdere pagina-aanmaak (bijv. tekst, titel of href aanpassen), genereer dan **altijd** opnieuw het volledige actieplan voor het bouwen/updaten van de pagina inclusief alle blocks en de bijbehorende inhoud (block_contents) zodat de gebruiker het volledige overzicht te zien krijgt.
+2. Wees volledig transparant in de JSON met alle titels, subtitels, teksten, knoppen, hrefs en alt-attributen per block.
 3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAAT (JSON voor nieuwe pagina):
+OUTPUT FORMAT (JSON voor volledige pagina actieplan):
 {
   "is_action": true,
-  "plan": "Nieuwe pagina 'fruit.html' aanmaken",
+  "plan": "Nieuwe pagina 'fruit.html' aanmaken met aangepaste hero titel",
   "actions": [
     {
       "type": "create_page",
       "file": "fruit.html",
-      "blocks": ["hero.html", "text-media.html"],
+      "blocks": ["hero.html", "media-text.html", "text-media.html"],
       "block_contents": {
         "hero.html": { 
-          "title": "Vers & Gezond Fruit", 
-          "subtitle": "Ontdek ons dagelijks verse assortiment uit eigen regio.", 
-          "button": "Bekijk assortiment", 
+          "title": "Het Lekkerste Vers Fruit, Elke Dag", 
+          "subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.", 
+          "button": "Bekijk Ons Aanbod", 
           "href": "#assortiment", 
-          "alt": "Verse fruitmand" 
+          "alt": "Kleurrijke schaal met vers fruit" 
+        },
+        "media-text.html": { 
+          "title": "Onze Lokale Telers", 
+          "text": "Wij werken nauw samen met lokale boeren om altijd de hoogste kwaliteit en beste smaak te garanderen.", 
+          "button": "Lees ons verhaal", 
+          "href": "over-ons.html", 
+          "alt": "Fruitboer in de boomgaard" 
         },
         "text-media.html": { 
-          "title": "Waarom kiezen voor ons fruit?", 
-          "text": "Rechtstreeks van de lokale teler naar jouw tafel, vol vitamines en smaak.", 
-          "button": "Meer weten", 
+          "title": "Seizoensfruit van de Maand", 
+          "text": "Geniet deze maand van de heerlijkste zoete aardbeien en sappige biologische appels.", 
+          "button": "Bestel direct", 
           "href": "contact.html", 
-          "alt": "Plukken van vers fruit" 
+          "alt": "Verse aardbeien en rode appels" 
         }
       },
-      "description": "Nieuwe pagina fruit.html aangemaakt"
+      "description": "Pagina fruit.html aangemaakt met bijgewerkte hero titel"
     }
   ]
 }
@@ -455,16 +462,9 @@ async function executePlan(plan) {
       }, 1000);
 
       if (action.type === "create_page") {
-        let baseName = action.file.replace(/\.html$/i, "");
-        let counter = 1;
         let targetFile = action.file;
-        while (await fileExists(targetFile)) {
-          targetFile = `${baseName}-${counter}.html`;
-          counter++;
-        }
-        action.file = targetFile;
-        shortName = action.file.replace(/\.html$/i, "");
-        pageUrl = githubPageUrl(action.file);
+        shortName = targetFile.replace(/\.html$/i, "");
+        pageUrl = githubPageUrl(targetFile);
 
         let html = `<!DOCTYPE html>\n<html lang="nl">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${shortName}</title>\n<script src="https://cdn.tailwindcss.com"><\/script>\n</head>\n<body>\n`;
 
@@ -501,7 +501,7 @@ async function executePlan(plan) {
           }
         }
         html += `</body>\n</html>`;
-        await githubSaveFile(action.file, html, action.description);
+        await githubSaveFile(targetFile, html, action.description);
 
       } else if (action.type === "update_page") {
         let fileObj = await githubGetFile(action.file);
@@ -613,7 +613,7 @@ async function processCommand(userText) {
           `;
 
           if (actionItem.type === "create_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
+            detailsHtml += `<p><strong>Actie:</strong> Pagina samenstellen / bijwerken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
             
             if (actionItem.blocks && actionItem.blocks.length > 0) {
               detailsHtml += `<div class="space-y-2 pt-1 border-t border-neutral-800"><strong class="text-white">Geselecteerde blocks & inhoud:</strong>`;
