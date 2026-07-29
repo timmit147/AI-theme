@@ -294,15 +294,6 @@ async function githubGetFile(path) {
   return { content: base64ToUtf8(data.content), sha: data.sha };
 }
 
-async function fileExists(path) {
-  try {
-    await githubGetFile(path);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
 async function githubSaveFile(path, content, message) {
   if (!config.githubToken) throw new Error("GitHub token vereist");
   const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/contents/${path}`;
@@ -334,68 +325,37 @@ async function askAI(userText) {
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
-  // Haal indien mogelijk de bestaande inhoud van de pagina op als deze al bestaat, zodat de AI de exacte huidige inhoud kent en kan vergelijken voor een correcte diff!
-  let existingPageContent = "";
-  let targetFileName = "fruit.html"; // of dynamisch afleiden indien nodig
-  if (userText.toLowerCase().includes("fruit")) {
-    try {
-      let fileData = await githubGetFile("fruit.html");
-      existingPageContent = "\nBESTAANDE INHOUD VAN fruit.html:\n" + fileData.content + "\n";
-    } catch(e) {}
-  }
-
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
-${existingPageContent}
+
 GESCHIEDENIS VAN HET GESPREK:
 ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
 REGELS:
-1. Als de gebruiker vraagt om een wijziging op een bestaande pagina (zoals een titel, tekst of href aanpassen), haal dan de volledige paginasamenstelling op en retourneer een actieplan om de pagina volledig bij te werken.
-2. Geef in de JSON per gewijzigd veld **altijd** zowel de oude waarde mee in bijvoorbeeld "old_title" als de nieuwe waarde in "title" (en idem voor subtitle, text, button, href, alt), zodat we een heldere rood/groen diff kunnen tonen.
+1. Als de gebruiker vraagt om een wijziging op een pagina, geef een actieplan om de hele pagina met alle benodigde blocks op te bouwen/bij te werken.
+2. Geef per gewijzigde waarde ook de oude waarde mee ("old_title", "old_subtitle", "old_text", etc.) om de verschillen (diff) zichtbaar te maken.
 3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAT (JSON voor volledige update met diff):
+OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
 {
   "is_action": true,
-  "plan": "Pagina 'fruit.html' bijwerken met gewijzigde hero titel",
+  "plan": "Pagina bijwerken met gewijzigde titel",
   "actions": [
     {
       "type": "create_page",
-      "file": "fruit.html",
-      "blocks": ["hero.html", "media-text.html", "text-media.html"],
+      "file": "pagina.html",
+      "blocks": ["hero.html", "media-text.html"],
       "block_contents": {
         "hero.html": { 
-          "old_title": "Vers & Gezond Fruit",
-          "title": "Het Lekkerste Vers Fruit, Elke Dag", 
-          "subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.", 
-          "old_subtitle": "Ontdek ons dagelijks verse assortiment rechtstreeks van de teler.",
-          "button": "Bekijk Ons Aanbod", 
-          "old_button": "Bekijk Ons Aanbod",
-          "href": "#assortiment", 
-          "old_href": "#assortiment",
-          "alt": "Kleurrijke schaal met vers fruit",
-          "old_alt": "Kleurrijke schaal met vers fruit"
-        },
-        "media-text.html": { 
-          "title": "Onze Lokale Telers", 
-          "text": "Wij werken nauw samen met lokale boeren om altijd de hoogste kwaliteit en beste smaak te garanderen.", 
-          "button": "Lees ons verhaal", 
-          "href": "over-ons.html", 
-          "alt": "Fruitboer in de boomgaard" 
-        },
-        "text-media.html": { 
-          "title": "Seizoensfruit van de Maand", 
-          "text": "Geniet deze maand van de heerlijkste zoete aardbeien en sappige biologische appels.", 
-          "button": "Bestel direct", 
-          "href": "contact.html", 
-          "alt": "Verse aardbeien en rode appels" 
+          "old_title": "Oude Titel",
+          "title": "Nieuwe Titel", 
+          "subtitle": "Subtitel..."
         }
       },
-      "description": "Pagina fruit.html volledig bijgewerkt met nieuwe hero titel"
+      "description": "Pagina bijgewerkt met nieuwe titel"
     }
   ]
 }
@@ -444,17 +404,53 @@ Geef een helder antwoord in het Nederlands of opties in een nette lijst.`;
   }
 }
 
-async function checkGitHubPagesDeployment(url) {
+// Luister direct naar de GitHub Actions API voor de NIEUWE Action Run die getriggerd is
+async function waitForGitHubActionRun(commitTimeMs) {
+  if (!config.githubToken) return;
+
+  // Wacht 4 seconden zodat GitHub tijd heeft om de nieuwe workflow run aan te maken
+  await new Promise(r => setTimeout(r, 4000));
+
   let attempts = 0;
-  while (attempts < 120) {
+  let actionFound = false;
+
+  while (attempts < 90) { // Max 3 minuten wachten
     try {
-      const res = await fetch(url + "?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
-      if (res.ok) return true;
-    } catch (e) {}
-    await new Promise(r => setTimeout(r, 2000));
+      const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/actions/runs?per_page=5`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${config.githubToken}`, Accept: "application/vnd.github+json" }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const runs = data.workflow_runs || [];
+
+        // Zoek de meest recente run die is gestart NA het moment van opslaan (met 5s speling)
+        const newRun = runs.find(r => new Date(r.created_at).getTime() >= (commitTimeMs - 5000));
+
+        if (newRun) {
+          actionFound = true;
+          if (newRun.status === "completed") {
+            if (newRun.conclusion === "success") {
+              return true; // Workflow is helemaal klaar en geslaagd!
+            } else {
+              throw new Error(`GitHub Action is mislukt met conclusie: ${newRun.conclusion}`);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (e.message.includes("mislukt")) throw e;
+    }
+
+    await new Promise(r => setTimeout(r, 3000)); // Check elke 3 seconden
     attempts++;
   }
-  return true;
+
+  if (!actionFound) {
+    // Indien GitHub Actions niet geconfigureerd is in de repo, val terug op een korte vertraging
+    await new Promise(r => setTimeout(r, 3000));
+  }
 }
 
 async function executePlan(plan) {
@@ -468,13 +464,15 @@ async function executePlan(plan) {
       let shortName = action.file ? action.file.replace(/\.html$/i, "") : "pagina";
       let pageUrl = githubPageUrl(action.file || "index.html");
 
-      let progressDiv = addMessage("ai", `Bezig met verwerken en deployen van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
+      let progressDiv = addMessage("ai", `GitHub Action gestart voor <strong>${shortName}</strong>... Wachten op bouwen & deployen... <span id="timer-${shortName}">0</span>s`, "progress");
       let seconds = 0;
       let timerInterval = setInterval(() => {
         seconds++;
         let timerSpan = document.getElementById(`timer-${shortName}`);
         if (timerSpan) timerSpan.textContent = seconds;
       }, 1000);
+
+      let startTimeMs = Date.now();
 
       if (action.type === "create_page") {
         let targetFile = action.file;
@@ -540,13 +538,13 @@ async function executePlan(plan) {
         await githubSaveFile(action.file, updatedHtml, action.description);
       }
 
-      // Wacht streng tot GitHub Pages live is voordat de voortgangmelding verdwijnt en het succesbericht verschijnt
-      await checkGitHubPagesDeployment(pageUrl);
+      // Wacht uitsluitend tot de NIEUWE GitHub Action daadwerkelijk is afgerond!
+      await waitForGitHubActionRun(startTimeMs);
 
       clearInterval(timerInterval);
       progressDiv.remove();
 
-      addMessage("ai", `${shortName} succesvol bijgewerkt en online — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
+      addMessage("ai", `${shortName} succesvol bijgewerkt en live online — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
     }
   } catch (error) {
     addMessage("ai", error.message, "error");
