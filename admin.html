@@ -11,7 +11,7 @@
 <header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
   <div>
     <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
-    <p class="text-xs text-neutral-500 mt-1">Website Generator (met Double-Check AI)</p>
+    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
   </div>
   <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
     Instellingen
@@ -22,7 +22,7 @@
   <div class="flex items-center justify-center h-full">
     <div class="text-center">
       <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
-      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI (Gevalideerd door AI Validator)</p>
+      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI om pagina's aan te maken of te bewerken</p>
     </div>
   </div>
 </main>
@@ -342,7 +342,6 @@ async function getBlockContent(blockName) {
   } catch (e) { return null; }
 }
 
-// BASIS AI CALL FUNCTIE
 async function rawAICall(promptText) {
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -385,7 +384,6 @@ async function rawAICall(promptText) {
   }
 }
 
-// HOOFDFUNCTIE MET AUTOMATISCHE AI VALIDATOR (AGENT 2)
 async function askAI(userText) {
   let blocksInfo = availableBlocks && availableBlocks.length > 0 
     ? "Beschikbare block bestanden op GitHub: " + availableBlocks.join(", ")
@@ -406,13 +404,12 @@ ${historyText}
 
 HUIDIGE OPDRACHT VAN GEBRUIKER: "${userText}"
 
-STRIKTE REGELS VOOR GENEREREN JSON:
-1. ALS GEBRUIKER OM WIJZIGINGEN/TOEVOEGINGEN VRAAGT:
-   - Je MOET de VOLLEDIGE acties-lijst genereren voor ALLE betrokken pagina's!
-   - Elk blok MOET zijn volledige "content" object hebben met unieke, concrete waarden voor: "title", "subtitle", "text", "button" en eventueel "img_src"!
-   - Laat NOOIT het "content" veld leeg of beknopt achter bij nieuwe of bestaande blokken.
-2. Elk blok in de "blocks" array bevat verplicht:
-   - "file": bestandsnaam van de block template (bijv. "hero.html")
+STRIKTE REGELS VOOR GENEREREN:
+1. MAAK EXACT HET AANTAL PAGINA'S WAAROM GEVRAAGD WORDT! Als er om 3 pagina's voor groenten gevraagd wordt, genereer dan EXACT 3 unieke pagina's (bijv. wortelen.html, broccoli.html, spinazie.html).
+2. RAAK NOOIT 'index.html' AAN tenzij de gebruiker HET WOORD 'index' of 'home' expliciet gebruikt in de opdracht!
+3. Zorg dat ALLE opgevraagde pagina's volledig in de "actions" array staan. Houd teksten beknopt en krachtig zodat de JSON nooit afgekapt raakt.
+4. Elk blok in de "blocks" array bevat verplicht:
+   - "file": bestandsnaam van het HTML block (bijv. "hero.html")
    - "status": "added", "modified" of "unchanged"
    - "content": { "title": "...", "subtitle": "...", "text": "...", "button": "...", "img_src": "..." }
 
@@ -436,29 +433,19 @@ OUTPUT FORMAT (UITSLUITEND GELDIGE JSON VERPLICHT):
   ]
 }`;
 
-  // STAP 1: Agent 1 genereert de eerste versie
   let rawOutput = await rawAICall(prompt);
 
-  // Als het geen JSON actie is (gewone vraag), geef direct terug
   if (!rawOutput.includes("{")) return rawOutput;
 
-  // STAP 2: AGENT 2 (De AI Validator / Checker)
-  let validationPrompt = `Je bent een hele strenge AI Validator (Agent 2). 
-Jouw taak is om de JSON-output van een andere AI te controleren op fouten vóórdat de gebruiker het ziet.
+  let validationPrompt = `Je bent een AI Validator (Agent 2).
+Controleer of onderstaande JSON 100% geldig is en dat ALLE geopende haakjes en arrays netjes zijn gesloten.
 
-CONTROLE-REGELS:
-1. Is het geldige JSON die zó door JSON.parse() gehaald kan worden?
-2. Als "is_action": true is, bevat elk blok in "blocks" een "file" én een gevuld "content" object?
-3. Zijn er geen lege strings ("") bij belangrijke titels of teksten?
-
-HIER IS DE OUTPUT VAN AGENT 1:
+HIER IS DE OUTPUT:
 \`\`\`json
 ${rawOutput}
 \`\`\`
 
-OPDRACHT:
-- ALS ALLES 100% CORRECT IS: Geef EXACT de oorspronkelijke JSON terug, niks meer en niks minder.
-- ALS ER FOUTEN ZIJN: Herstel de JSON-fouten direct en geef ALLEEN de gecorrigeerde, geldige JSON terug.`;
+Geef ALLEEN de gecorrigeerde, geldige JSON terug. Geen overige tekst.`;
 
   let validatedOutput = await rawAICall(validationPrompt);
   return validatedOutput;
@@ -663,7 +650,7 @@ async function processCommand(userText) {
 
     conversationHistory.push({ role: "user", content: userText });
 
-    let thinkingMsg = addMessage("ai", "Even denken & dubbelchecken...");
+    let thinkingMsg = addMessage("ai", "Even verwerken...");
     let aiResponse = await askAI(userText);
     thinkingMsg.remove();
     
@@ -677,7 +664,7 @@ async function processCommand(userText) {
         if (plan.is_action && plan.actions) {
           let detailsHtml = `
             <div class="space-y-4">
-              <p class="font-medium text-white">📋 Plan: ${plan.plan} <span class="text-xs text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800 ml-2">✓ AI-Gevalideerd</span></p>
+              <p class="font-medium text-white">📋 Plan: ${plan.plan}</p>
           `;
 
           let pageCount = 1;
