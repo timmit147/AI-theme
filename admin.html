@@ -1,89 +1,3 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Theme Builder</title>
-<script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-black text-white h-screen flex flex-col">
-
-<header class="bg-neutral-900 border-b border-neutral-800 px-6 py-4 flex justify-between items-center">
-  <div>
-    <h1 class="font-light text-base tracking-wide">AI Theme Builder</h1>
-    <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
-  </div>
-  <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-    Instellingen
-  </button>
-</header>
-
-<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
-  <div class="flex items-center justify-center h-full">
-    <div class="text-center">
-      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
-      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
-    </div>
-  </div>
-</main>
-
-<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
-  <input
-    id="user-input"
-    type="text"
-    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
-    placeholder="Geef opdracht..."
-    autocomplete="off"
-  >
-  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
-    Verzenden
-  </button>
-</form>
-
-<!-- SETTINGS MODAL -->
-<div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-sm space-y-4 max-h-[90vh] overflow-y-auto">
-    <h2 class="font-light text-lg">Instellingen</h2>
-
-    <div>
-      <label class="text-xs text-neutral-500 block mb-1">AI API Key (Gemini of OpenAI)</label>
-      <input id="ai-key" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors" placeholder="AIza... of sk-proj-... of AQ.Ab...">
-      <p class="text-xs text-neutral-600 mt-1">Gemini: AIza... of AQ.Ab... | OpenAI: sk-... of sk-proj-...</p>
-    </div>
-
-    <div>
-      <label class="text-xs text-neutral-500 block mb-1">GitHub Token</label>
-      <input id="github-token" type="password" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
-    </div>
-
-    <div>
-      <label class="text-xs text-neutral-500 block mb-1">GitHub User</label>
-      <input id="github-user" value="timmit147" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
-    </div>
-
-    <div>
-      <label class="text-xs text-neutral-500 block mb-1">Repository</label>
-      <input id="github-repo" value="ai-theme" class="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm outline-none focus:border-neutral-700 transition-colors">
-    </div>
-
-    <button onclick="testAPI()" class="w-full bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-      Verbindingen testen
-    </button>
-    
-    <div id="api-status" class="hidden text-xs space-y-2 mt-2 p-3 bg-neutral-950 border border-neutral-800 rounded">
-    </div>
-
-    <div class="flex justify-end gap-2 pt-4">
-      <button onclick="toggleSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
-        Sluiten
-      </button>
-      <button onclick="saveSettings()" type="button" class="px-4 py-2 bg-white text-black rounded text-sm font-medium hover:bg-neutral-200 transition-colors">
-        Opslaan
-      </button>
-    </div>
-  </div>
-</div>
-
 <script>
 let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
   aiKey: "",
@@ -325,43 +239,55 @@ async function askAI(userText) {
     ? "Beschikbare blocks: " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
+  let existingPageContext = "";
+  try {
+    // Probeer de bestaande pagina op te halen voor context behoud
+    let targetPage = "kaas.html"; 
+    let file = await githubGetFile(targetPage);
+    if (file && file.content) {
+      existingPageContext = `HUIDIGE PAGINAINHOUD (${targetPage}):\n${file.content}\n`;
+    }
+  } catch(e) {}
+
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
+${existingPageContext}
 GESCHIEDENIS VAN HET GESPREK:
 ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
-REGELS:
-1. Als de gebruiker vraagt om een wijziging op een pagina, geef een actieplan om de hele pagina met alle benodigde blocks op te bouwen/bij te werken.
-2. Geef per gewijzigde waarde ook de oude waarde mee ("old_title", "old_subtitle", "old_text", etc.) om de verschillen (diff) zichtbaar te maken.
-3. Retourneer uitsluitend JSON als een actieplan vereist is.
+STRIKTE REGELS VOOR BEHOUD VAN DE PAGINA:
+1. Als je een pagina bijwerkt, MOET je ALLE bestaande blocks die op de pagina staan behouden in de array "blocks", TENSEIJ de gebruiker specifiek vraagt om een block te verwijderen.
+2. Pas uitsluitend de gevraagde waarden aan in "block_contents". Laat alle niet-gewijzigde blokken/teksten zoals ze zijn.
+3. Geef per gewijzigde waarde ook de oude waarde mee ("old_title", "old_subtitle", "old_text", etc.).
+4. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAT (JSON voorbeeld voor pagina update met diff):
+OUTPUT FORMAT (JSON voorbeeld voor pagina update met behoud van álle blocks):
 {
   "is_action": true,
-  "plan": "Pagina bijwerken met gewijzigde titel",
+  "plan": "Titel aanpassen in de Hero block met behoud van overige blocks",
   "actions": [
     {
       "type": "create_page",
-      "file": "pagina.html",
-      "blocks": ["hero.html", "media-text.html"],
+      "file": "kaas.html",
+      "blocks": ["hero.html", "media-text.html", "text-media.html"],
       "block_contents": {
         "hero.html": { 
-          "old_title": "Oude Titel",
-          "title": "Nieuwe Titel", 
-          "subtitle": "Subtitel..."
+          "old_title": "De Wonderlijke Wereld van Vogels",
+          "title": "Vogels", 
+          "subtitle": "Alles over bijzondere vogelsoorten..."
         }
       },
-      "description": "Pagina bijgewerkt met nieuwe titel"
+      "description": "Hero titel aangepast naar Vogels"
     }
   ]
 }
 
 ALS GEEN ACTIE NODIG IS:
-Geef een helder antwoord in het Nederlands of opties in een nette lijst.`;
+Geef een helder antwoord in het Nederlands.`;
 
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -396,7 +322,7 @@ Geef een helder antwoord in het Nederlands of opties in een nette lijst.`;
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], temperature: 0.7 })
+      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], temperature: 0.2 })
     });
     if (!response.ok) throw new Error("OpenAI Foutmelding");
     const data = await response.json();
@@ -404,17 +330,15 @@ Geef een helder antwoord in het Nederlands of opties in een nette lijst.`;
   }
 }
 
-// Luister direct naar de GitHub Actions API voor de NIEUWE Action Run die getriggerd is
 async function waitForGitHubActionRun(commitTimeMs) {
   if (!config.githubToken) return;
 
-  // Wacht 4 seconden zodat GitHub tijd heeft om de nieuwe workflow run aan te maken
   await new Promise(r => setTimeout(r, 4000));
 
   let attempts = 0;
   let actionFound = false;
 
-  while (attempts < 90) { // Max 3 minuten wachten
+  while (attempts < 90) {
     try {
       const url = `https://api.github.com/repos/${config.githubUser}/${config.repo}/actions/runs?per_page=5`;
       const response = await fetch(url, {
@@ -425,14 +349,13 @@ async function waitForGitHubActionRun(commitTimeMs) {
         const data = await response.json();
         const runs = data.workflow_runs || [];
 
-        // Zoek de meest recente run die is gestart NA het moment van opslaan (met 5s speling)
         const newRun = runs.find(r => new Date(r.created_at).getTime() >= (commitTimeMs - 5000));
 
         if (newRun) {
           actionFound = true;
           if (newRun.status === "completed") {
             if (newRun.conclusion === "success") {
-              return true; // Workflow is helemaal klaar en geslaagd!
+              return true;
             } else {
               throw new Error(`GitHub Action is mislukt met conclusie: ${newRun.conclusion}`);
             }
@@ -443,12 +366,11 @@ async function waitForGitHubActionRun(commitTimeMs) {
       if (e.message.includes("mislukt")) throw e;
     }
 
-    await new Promise(r => setTimeout(r, 3000)); // Check elke 3 seconden
+    await new Promise(r => setTimeout(r, 3000));
     attempts++;
   }
 
   if (!actionFound) {
-    // Indien GitHub Actions niet geconfigureerd is in de repo, val terug op een korte vertraging
     await new Promise(r => setTimeout(r, 3000));
   }
 }
@@ -538,7 +460,6 @@ async function executePlan(plan) {
         await githubSaveFile(action.file, updatedHtml, action.description);
       }
 
-      // Wacht uitsluitend tot de NIEUWE GitHub Action daadwerkelijk is afgerond!
       await waitForGitHubActionRun(startTimeMs);
 
       clearInterval(timerInterval);
@@ -656,7 +577,7 @@ async function processCommand(userText) {
                   detailsHtml += renderDiffField("Alt", c.old_alt, c.alt);
 
                 } else {
-                  detailsHtml += `<p class="text-neutral-500 italic">Standaard inhoud</p>`;
+                  detailsHtml += `<p class="text-neutral-500 italic">Behouden met bestaande inhoud</p>`;
                 }
                 detailsHtml += `</div>`;
               }
@@ -729,6 +650,3 @@ async function sendMessage(event) {
   }
 }
 </script>
-
-</body>
-</html>
