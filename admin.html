@@ -362,45 +362,37 @@ ${historyText}
 
 HUIDIGE OPDRACHT VAN GEBRUIKER: "${userText}"
 
-STRIKTE REGELS:
-1. ALS DE GEBRUIKER OM MEERDERE PAGINA'S VRAAGT (bijv. "Maak 3 pagina's"):
-   - Je MOET voor ELKE pagina een afzonderlijk actie-object toevoegen aan de "actions" array!
-   - Als er om 3 pagina's gevraagd wordt, bevat "actions" EXACT 3 elementen (bijv. action 1 voor stroopwafel.html, action 2 voor gevulde-koek.html, action 3 voor sprits.html).
-2. VOOR ELKE PAGINA VOLLEDIGE CONTENT GEVEN:
-   - Geef voor elke pagina alle blocks en unieke, concrete content op (title, subtitle, text, button, img_src).
-   - Gebruik NOOIT "Titel hier" of leeg laten.
-3. Elk blok heeft status: "added", "modified" of "unchanged".
+STRIKTE REGELS VOOR GENEREREN JSON:
+1. ALS GEBRUIKER OM WIJZIGINGEN/TOEVOEGINGEN VRAAGT (bijv. "Eerste 2 paginas voeg extra blok toe"):
+   - Je MOET de VOLLEDIGE acties-lijst genereren voor ALLE betrokken pagina's!
+   - Elk blok (zowel bestaand als nieuw toegevoegd) MOET zijn volledige "content" object hebben met unieke, concrete waarden voor: "title", "subtitle", "text", "button" en eventueel "img_src"!
+   - Laat NNOOIT het "content" veld leeg of beknopt achter bij nieuwe of bestaande blokken.
+2. Elk blok in de "blocks" array bevat verplicht:
+   - "file": bestandsnaam van de block template (bijv. "hero.html", "text-media.html", "media-text.html")
+   - "status": "added", "modified" of "unchanged"
+   - "content": { "title": "...", "subtitle": "...", "text": "...", "button": "...", "img_src": "..." }
 
-OUTPUT FORMAT (JSON verplicht):
+OUTPUT FORMAT (UITSLUITEND GELDIGE JSON VERPLICHT):
 {
   "is_action": true,
-  "plan": "Drie pagina's maken met elk unieke blocks en content.",
+  "plan": "Omschrijving van het plan",
   "actions": [
     {
       "type": "create_page",
-      "file": "stroopwafel.html",
+      "file": "bestandsnaam.html",
+      "description": "Korte omschrijving",
       "blocks": [
         {
-          "id": "block_1",
           "file": "hero.html",
-          "status": "added",
-          "content": { "title": "Warme Stroopwafels", "subtitle": "Vers uit de ijzers", "button": "Bestel" }
-        }
-      ],
-      "description": "Pagina voor stroopwafels"
-    },
-    {
-      "type": "create_page",
-      "file": "gevulde-koek.html",
-      "blocks": [
+          "status": "unchanged",
+          "content": { "title": "Bestaande Titel", "subtitle": "Bestaande subtitel", "button": "Knop" }
+        },
         {
-          "id": "block_1",
-          "file": "hero.html",
+          "file": "text-media.html",
           "status": "added",
-          "content": { "title": "Luxe Gevulde Koeken", "subtitle": "Met 100% amandelspijs", "button": "Bestel" }
+          "content": { "title": "Nieuwe Unieke Titel", "subtitle": "Nieuwe subtitel", "text": "Uitgebreide nieuwe tekst", "button": "Actieknop", "img_src": "images/voorbeeld.jpg" }
         }
-      ],
-      "description": "Pagina voor gevulde koeken"
+      ]
     }
   ]
 }`;
@@ -662,7 +654,6 @@ async function processCommand(userText) {
               <p class="font-medium text-white">📋 Plan: ${plan.plan}</p>
           `;
 
-          // LOOP DOOR ALLE PAGINA-ACTIES IN PLAATS VAN ALLEEN DE EERSTE
           let pageCount = 1;
           for (let actionItem of plan.actions) {
             let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
@@ -692,23 +683,15 @@ async function processCommand(userText) {
                   badgeHtml = `<span class="bg-neutral-800 text-neutral-400 border border-neutral-700 px-2 py-0.5 rounded text-[10px] font-medium">ONGEWIJZIGD</span>`;
                 }
 
-                detailsHtml += `<div class="bg-neutral-950 p-2.5 rounded border ${bStatus === 'modified' ? 'border-emerald-900/60' : 'border-neutral-800'} space-y-1">`;
+                detailsHtml += `<div class="bg-neutral-950 p-2.5 rounded border ${bStatus === 'modified' ? 'border-emerald-900/60' : (bStatus === 'added' ? 'border-blue-900/60' : 'border-neutral-800')} space-y-1">`;
                 detailsHtml += `<div class="flex items-center justify-between"><p class="text-blue-400 font-medium">Blok ${idx}: 🔹 ${bFile}</p>${badgeHtml}</div>`;
                 
-                const renderDiffField = (label, oldVal, newVal) => {
-                  if (oldVal && newVal && oldVal !== newVal) {
-                    return `<p class="mt-0.5"><span class="text-neutral-500">${label}:</span> <span class="text-red-400/80 line-through">"${oldVal}"</span> ➔ <span class="text-emerald-400 font-medium">"${newVal}"</span></p>`;
-                  } else if (newVal) {
-                    return `<p class="mt-0.5"><span class="text-neutral-500">${label}:</span> "${newVal}"</p>`;
-                  }
-                  return "";
-                };
-
-                detailsHtml += renderDiffField("Titel", c.old_title, c.title);
-                detailsHtml += renderDiffField("Subtitel", c.old_subtitle, c.subtitle);
-                detailsHtml += renderDiffField("Tekst", c.old_text, c.text);
-                detailsHtml += renderDiffField("Knop", c.old_button, c.button);
-                detailsHtml += renderDiffField("Afbeelding", c.old_img_src, c.img_src);
+                // RENDERT ALTIJD DE CONTENT DIE AANWEZIG IS
+                if (c.title) detailsHtml += `<p class="mt-1"><span class="text-neutral-500">Titel:</span> "${c.title}"</p>`;
+                if (c.subtitle) detailsHtml += `<p><span class="text-neutral-500">Subtitel:</span> "${c.subtitle}"</p>`;
+                if (c.text) detailsHtml += `<p><span class="text-neutral-500">Tekst:</span> "${c.text}"</p>`;
+                if (c.button) detailsHtml += `<p><span class="text-neutral-500">Knop:</span> "${c.button}"</p>`;
+                if (c.img_src) detailsHtml += `<p><span class="text-neutral-500">Afbeelding:</span> "${c.img_src}"</p>`;
 
                 detailsHtml += `</div>`;
                 idx++;
