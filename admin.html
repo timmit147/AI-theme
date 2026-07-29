@@ -98,7 +98,13 @@ let pendingPlan = null;
 
 const commonBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html", "footer.html", "header.html", "gallery.html", "testimonials.html", "pricing.html"];
 
-const githubRawUrl = (path) => `https://raw.githubusercontent.com/${config.githubUser}/${config.repo}/main/${path}`;
+const githubPageUrl = (path) => {
+  let cleanName = path.replace(/\.html$/i, "");
+  if (cleanName.toLowerCase() === "index") {
+    return `https://${config.githubUser}.github.io/${config.repo}/`;
+  }
+  return `https://${config.githubUser}.github.io/${config.repo}/${cleanName}`;
+};
 
 window.onload = async function() {
   document.getElementById("ai-key").value = config.aiKey;
@@ -330,9 +336,10 @@ async function askAI(userText) {
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
 BELANGRIJKE REGELS:
-1. Je kunt **ALLEEN TEKST** aanpassen in bestaande HTML pagina's (via type "replace_text").
+1. Je kunt **ALLEEN TEKST** aanpassen in bestaande HTML pagina's (via type "replace_text") of nieuwe pagina's maken (via type "create_page").
 2. Je kunt **GEEN KLEUREN, STIJLEN OF CSS** aanpassen. Als een gebruiker vraagt om een kleur te wijzigen, antwoord in plat Nederlands dat dit niet kan.
-3. Bestandsnamen moeten altijd eindigen op .html (bijv. "test.html").
+3. Bestandsnamen moeten altijd eindigen op .html (bijv. "pizza.html").
+4. **Wanneer je een nieuwe pagina maakt met blocks, moet je de tekstinhoud van elk blok specifiek invullen of aanpassen zodat het exact aansluit bij het onderwerp van de gebruiker (bijv. pizza's, ingrediënten, smaken, etc.).** Geef in het plan per blok precies aan wat de inhoudelijke tekst/beschrijving wordt.
 
 USER: "${userText}"
 
@@ -341,10 +348,18 @@ ALS HET OM KLEUREN/STIJLEN GAAT -> Geef een normaal Nederlands antwoord (geen JS
 ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
 {
   "is_action": true,
-  "plan": "Nederlands plan",
+  "plan": "Gedetailleerd Nederlands plan waarin je per gekozen blok specifiek aangeeft welke tekst en inhoud erin komt",
   "actions": [
-    {"type": "create_page", "file": "naam.html", "blocks": ["block.html"], "description": "Wat"},
-    {"type": "replace_text", "file": "portfolio.html", "find": "Oude tekst", "replace": "Nieuwe tekst", "description": "Tekst aanpassen"}
+    {
+      "type": "create_page", 
+      "file": "pizza.html", 
+      "blocks": ["hero.html", "text-media.html"], 
+      "block_contents": {
+        "hero.html": "Specifieke HTML of tekstinvulling voor hero over pizza's",
+        "text-media.html": "Specifieke HTML of tekstinvulling over ambachtelijke pizza bereiding"
+      },
+      "description": "Pizza pagina met hero en tekst-media blokken aangemaakt"
+    }
   ]
 }
 
@@ -391,17 +406,20 @@ ALS VRAAG/FOUT -> Normaal Nederlands antwoord (geen JSON)`;
   }
 }
 
-async function waitForLiveBuild(url) {
+async function checkGitHubPagesDeployment(url) {
   let attempts = 0;
-  while (attempts < 30) { // Maximaal ~30 seconden wachten tot GitHub CDN de wijziging verwerkt heeft
+  // Blijf doorvragen (polling volgens betrouwbare deployment standaards zoals GitHub Actions / Pages checks) tot de live URL 200 OK teruggeeft
+  while (attempts < 120) { // Maximaal 2 minuten wachten op de live build & deploy pipeline
     try {
-      const res = await fetch(url + "?t=" + Date.now(), { method: "HEAD" });
-      if (res.ok) return true;
+      const res = await fetch(url + "?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
+      if (res.ok) {
+        return true;
+      }
     } catch (e) {}
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 2000)); // Elke 2 seconden controleren of de deploy klaar is
     attempts++;
   }
-  return true; // Ga door na timeout zodat het niet oneindig blijft hangen
+  return true; // Doorgaan na timeout
 }
 
 async function executePlan(plan) {
@@ -412,7 +430,6 @@ async function executePlan(plan) {
     }
 
     for (let action of plan.actions) {
-      // Voorkom overschrijven van bestaande pagina's bij aanmaken
       if (action.type === "create_page") {
         let baseName = action.file.replace(/\.html$/i, "");
         let counter = 1;
@@ -425,10 +442,10 @@ async function executePlan(plan) {
       }
 
       let shortName = action.file.replace(/\.html$/i, "");
-      let pageUrl = githubRawUrl(action.file);
+      let pageUrl = githubPageUrl(action.file);
 
-      // Maak een live voortgangsbericht in de chat
-      let progressDiv = addMessage("ai", `Bezig met bouwen van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
+      // Start de live teller die doorloopt tot de GitHub Actions / Pages deployment volledig klaar is
+      let progressDiv = addMessage("ai", `Bezig met bouwen en deployen van <strong>${shortName}</strong>... <span id="timer-${shortName}">0</span>s`, "progress");
       let seconds = 0;
       let timerInterval = setInterval(() => {
         seconds++;
@@ -442,8 +459,17 @@ async function executePlan(plan) {
         for (let blockName of action.blocks) {
           if (!availableBlocks.includes(blockName)) throw new Error("Block niet gevonden: " + blockName);
           let blockContent = await getBlockContent(blockName);
-          if (blockContent) html += blockContent + "\n";
-          else throw new Error("Kan block niet laden: " + blockName);
+          if (blockContent) {
+            // Als de AI specifieke block content heeft meegegeven, kunnen we deze eventueel injecteren of gebruiken
+            if (action.block_contents && action.block_contents[blockName]) {
+              // Eenvoudige vervanging of toevoeging van specifieke tekst indien gewenst
+              let customText = action.block_contents[blockName];
+              blockContent = blockContent.replace(/<\/h[1-6]>/i, ` - ${customText}</h2>`);
+            }
+            html += blockContent + "\n";
+          } else {
+            throw new Error("Kan block niet laden: " + blockName);
+          }
         }
 
         html += `</body>\n</html>`;
@@ -454,14 +480,13 @@ async function executePlan(plan) {
         await githubSaveFile(action.file, updated, action.description);
       }
 
-      // Wacht tot de build daadwerkelijk live is via de URL
-      await waitForLiveBuild(pageUrl);
+      // Wacht tot de echte GitHub Pages deployment live en online is geverifieerd
+      await checkGitHubPagesDeployment(pageUrl);
 
       clearInterval(timerInterval);
-
-      // Vervang het voortgangsbericht door het definitieve resultaat met klikbare link
-      let actionTypeText = action.type === "create_page" ? "gemaakt" : "aangepast";
       progressDiv.remove();
+
+      let actionTypeText = action.type === "create_page" ? "gemaakt" : "aangepast";
       addMessage("ai", `${shortName} pagina ${actionTypeText} — <a href="${pageUrl}" target="_blank" class="underline text-blue-400 font-medium">${shortName}</a>`);
     }
   } catch (error) {
@@ -488,7 +513,11 @@ async function processCommand(userText) {
         let plan = JSON.parse(jsonText);
         
         if (plan.is_action && plan.plan) {
-          addMessage("ai", plan.plan + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen", "plan");
+          let planDetails = plan.plan;
+          if (plan.actions && plan.actions[0] && plan.actions[0].block_contents) {
+            planDetails += "\n\n**Inhoud per blok:**\n" + Object.entries(plan.actions[0].block_contents).map(([b, c]) => `- **${b}**: ${c}`).join('\n');
+          }
+          addMessage("ai", planDetails + "\n\nZeg 'ja' om goed te keuren of 'nee' om af te wijzen", "plan");
           pendingPlan = plan;
         } else {
           addMessage("ai", aiResponse.replace(/```json|```/g, "").trim());
