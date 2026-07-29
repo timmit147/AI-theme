@@ -335,11 +335,12 @@ async function askAI(userText) {
 
   let prompt = `Je bent een AI Website Builder. ${blocksInfo}
 
-STRENGE REGELS VOOR TEKST EN BLOKKEN:
-1. **GEEN PLACEHOLDERS:** Gebruik nooit teksten zoals "Beschrijving hier", "Titel hier", "Tekst naast de afbeelding", "Afbeelding", of "Neem contact op". Elke regel tekst moet volledig, inhoudelijk en direct bruikbaar zijn voor de eindgebruiker.
-2. **KORT & KRACHTIG (PASSEND VOOR DE BLOKKEN):** Zorg dat titels kort zijn (max 4-6 woorden) en beschrijvingen compact (max 1-2 korte zinnen), zodat het netjes en overzichtelijk in de websiteblokken past zonder overstroming.
-3. Je kunt **ALLEEN TEKST** aanpassen in bestaande HTML pagina's of nieuwe pagina's maken (via type "create_page"). Geen CSS of kleuren wijzigen.
-4. Bestandsnamen moeten altijd eindigen op .html (bijv. "hond.html").
+KRITIEKE INSTRUCTIES VOOR BLOK-INBOUW & TEKST:
+1. **VERVANG ALLE VELDEN GOED:** Elk blok heeft meerdere onderdelen (zoals een titel, een beschrijving/subtitel en eventueel een knoptekst). Laat geen enkel element leeg of achter met placeholder tekst zoals "Titel hier", "Beschrijving hier" of "Neem contact op". 
+2. **GENEREER SCHOON EN DIRECT:** Schoon de tekst direct op. Plaats geen prefixen zoals "Titel: " of "Subtitel: " letterlijk in de HTML. Vul direct zuivere, professionele koppen en beschrijvende alinea's in.
+3. **KORT & KRACHTIG:** Houd koppen kort (max 4-6 woorden) en beschrijvingen compact (1 tot maximaal 2 zinnen) zodat het perfect in de lay-out past.
+4. Je kunt **ALLEEN TEKST** aanpassen of nieuwe pagina's maken (via type "create_page"). Geen CSS of kleuren wijzigen.
+5. Bestandsnamen moeten eindigen op .html (bijv. "kat.html").
 
 USER: "${userText}"
 
@@ -352,14 +353,24 @@ ALS GELDIGE ACTIE -> Geef JSON (geen extra tekst):
   "actions": [
     {
       "type": "create_page", 
-      "file": "hond.html", 
+      "file": "kat.html", 
       "blocks": ["hero.html", "media-text.html", "text-media.html"], 
       "block_contents": {
-        "hero.html": "Alles over jouw Trouwe Viervoeter | Van voeding tot training voor een gelukkige hond.",
-        "media-text.html": "Professionele Verzorging | Een gezond leven begint bij goede voeding en liefdevolle aandacht.",
-        "text-media.html": "Effectieve Training | Leer positief communiceren met je hond voor een sterke band."
+        "hero.html": {
+          "title": "Alles over Jouw Kat",
+          "subtitle": "Ontdek handige tips voor voeding, verzorging en gedrag.",
+          "button": "Bekijk Gidsen"
+        },
+        "media-text.html": {
+          "title": "Gezonde Voeding",
+          "text": "Een gelukkige kat begint bij de juiste dagelijkse voeding en voldoende vers drinkwater."
+        },
+        "text-media.html": {
+          "title": "Speelgedrag & Liefde",
+          "text": "Versterk de band met je kat door actief samen te spelen en te zorgen voor een veilige omgeving."
+        }
       },
-      "description": "Hond pagina aangemaakt"
+      "description": "Kat pagina aangemaakt"
     }
   ]
 }
@@ -460,8 +471,23 @@ async function executePlan(plan) {
           let blockContent = await getBlockContent(blockName);
           if (blockContent) {
             if (action.block_contents && action.block_contents[blockName]) {
-              let customText = action.block_contents[blockName];
-              blockContent = blockContent.replace(/<\/h[1-6]>/i, ` - ${customText}</h2>`);
+              let c = action.block_contents[blockName];
+              
+              // Slimme vervanging van alle velden in de HTML template
+              if (typeof c === "object") {
+                if (c.title) {
+                  blockContent = blockContent.replace(/<h[1-6][^>]*>.*?<\/h[1-6]>/i, `<h2>${c.title}</h2>`);
+                }
+                if (c.subtitle || c.text) {
+                  let txt = c.subtitle || c.text;
+                  blockContent = blockContent.replace(/<p[^>]*>.*?<\/p>/is, `<p>${txt}</p>`);
+                }
+                if (c.button) {
+                  blockContent = blockContent.replace(/<a[^>]*>.*?<\/a>/is, `<a href="#">${c.button}</a>`);
+                }
+              } else if (typeof c === "string") {
+                blockContent = blockContent.replace(/<\/h[1-6]>/i, `</h2><p>${c}</p>`);
+              }
             }
             html += blockContent + "\n";
           } else {
@@ -513,7 +539,7 @@ async function processCommand(userText) {
           let fileName = actionItem.file ? actionItem.file.replace(/\.html$/i, "") : "pagina";
           let blockList = actionItem.blocks ? actionItem.blocks.join(", ") : "";
 
-          // Strakke, overzichtelijke en compacte weergave in de chat
+          // Strakke, compacte en overzichtelijke weergave van het plan in de chat
           let detailsHtml = `
             <div class="space-y-2">
               <p class="font-medium text-white">📋 Plan: Pagina maken (<span class="text-blue-400">${fileName}</span>)</p>
@@ -524,7 +550,16 @@ async function processCommand(userText) {
           if (actionItem.block_contents) {
             detailsHtml += `<div class="mt-2 pt-2 border-t border-neutral-800 space-y-1"><p class="text-neutral-300 font-medium">Inhoud per blok:</p>`;
             for (let [block, content] of Object.entries(actionItem.block_contents)) {
-              detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${content}</p>`;
+              if (typeof content === "object") {
+                let parts = [];
+                if (content.title) parts.id = parts.push(`Titel: ${content.title}`);
+                if (content.subtitle) parts.push(`Subtitel: ${content.subtitle}`);
+                if (content.text) parts.push(`Tekst: ${content.text}`);
+                if (content.button) parts.push(`Knop: ${content.button}`);
+                detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${parts.join(" | ")}</p>`;
+              } else {
+                detailsHtml += `<p class="ml-2">• <span class="text-neutral-300">${block}:</span> ${content}</p>`;
+              }
             }
             detailsHtml += `</div>`;
           }
