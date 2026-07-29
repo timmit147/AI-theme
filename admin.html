@@ -331,7 +331,7 @@ async function getBlockContent(blockName) {
 
 async function askAI(userText) {
   let blocksInfo = availableBlocks && availableBlocks.length > 0 
-    ? "Beschikbare blocks: " + availableBlocks.join(", ")
+    ? "Beschikbare blocks (gebruik uitsluitend deze bestandsnamen voor nieuwe pagina's): " + availableBlocks.join(", ")
     : "Geen blocks beschikbaar";
 
   let historyText = conversationHistory.map(h => `${h.role}: ${h.content}`).join("\n");
@@ -343,28 +343,31 @@ ${historyText}
 
 HUIDIGE OPDRACHT/REACTIE VAN GEBRUIKER: "${userText}"
 
-REGELS:
-1. **ALTIJD EEN PLAN MAKEN:** Als de gebruiker reageert op een optie (bijv. "1" of kiest uit suggesties) of een wijziging vraagt, genereer dan **ALTIJD** een JSON actieplan om de wijziging voor te stellen ter goedkeuring. Voer nooit direct acties uit zonder plan.
-2. **BESTAANDE PAGINA AANPASSEN:** Gebruik actietype "update_page" als er op een bestaande pagina (zoals water.html) iets gewijzigd moet worden.
-3. **JSON FORMAT:** Geef uitsluitend JSON terug wanneer een actie of optie gekozen is.
+REGELS VOOR NIEUWE PAGINA'S:
+1. Als de gebruiker een nieuwe pagina wil aanmaken (bijv. "Maak pagina fruit"), kies dan altijd logische blokken uit de beschikbare blocks (zoals een hero.html en text-media.html).
+2. Geef in het plan expliciet aan welke blocks er worden geplaatst en met welke inhoud (titel/tekst), tenzij de gebruiker uitdrukkelijk heeft gezegd dat de pagina *leeg* moet zijn.
+3. Retourneer uitsluitend JSON als een actieplan vereist is.
 
-OUTPUT FORMAAT (JSON):
+OUTPUT FORMAAT (JSON voor nieuwe pagina):
 {
   "is_action": true,
-  "plan": "Titel aanpassen op water pagina",
+  "plan": "Nieuwe pagina 'fruit.html' aanmaken met hero en informatieblokken",
   "actions": [
     {
-      "type": "update_page",
-      "file": "water.html",
-      "old_text": "Oude Titel",
-      "new_text": "Gekozen Nieuwe Titel",
-      "description": "Titel gewijzigd naar Gekozen Nieuwe Titel"
+      "type": "create_page",
+      "file": "fruit.html",
+      "blocks": ["hero.html", "text-media.html"],
+      "block_contents": {
+        "hero.html": { "title": "Vers & Gezond Fruit", "subtitle": "Ontdek ons dagelijks verse assortiment." },
+        "text-media.html": { "title": "Waarom kiezen voor ons fruit?", "text": "Rechtstreeks van de lokale teler naar jouw tafel." }
+      },
+      "description": "Nieuwe pagina fruit.html aangemaakt met hero en tekstblok"
     }
   ]
 }
 
-ALS GEEN ACTIE NODIG IS (bijv. gewone vraag/uitleg):
-Geef een helder antwoord in het Nederlands. Als je suggesties geeft, presenteer deze dan duidelijk genummerd zodat de gebruiker er een kan kiezen.`;
+ALS GEEN ACTIE NODIG IS:
+Geef een helder antwoord in het Nederlands of opties in een nette lijst.`;
 
   let key = config.aiKey;
   if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
@@ -453,34 +456,36 @@ async function executePlan(plan) {
 
         let html = `<!DOCTYPE html>\n<html lang="nl">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${shortName}</title>\n<script src="https://cdn.tailwindcss.com"><\/script>\n</head>\n<body>\n`;
 
-        for (let blockName of action.blocks) {
-          if (!availableBlocks.includes(blockName)) throw new Error("Block niet gevonden: " + blockName);
-          let blockContent = await getBlockContent(blockName);
-          if (blockContent) {
-            if (action.block_contents && action.block_contents[blockName]) {
-              let c = action.block_contents[blockName];
-              let parser = new DOMParser();
-              let doc = parser.parseFromString(blockContent, 'text/html');
+        if (action.blocks && Array.isArray(action.blocks)) {
+          for (let blockName of action.blocks) {
+            if (!availableBlocks.includes(blockName)) throw new Error("Block niet gevonden: " + blockName);
+            let blockContent = await getBlockContent(blockName);
+            if (blockContent) {
+              if (action.block_contents && action.block_contents[blockName]) {
+                let c = action.block_contents[blockName];
+                let parser = new DOMParser();
+                let doc = parser.parseFromString(blockContent, 'text/html');
 
-              if (typeof c === "object") {
-                let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
-                if (headings.length > 0 && c.title) headings[0].textContent = c.title;
+                if (typeof c === "object") {
+                  let headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                  if (headings.length > 0 && c.title) headings[0].textContent = c.title;
 
-                let paragraphs = doc.querySelectorAll('p');
-                let subText = c.subtitle || c.text;
-                if (paragraphs.length > 0 && subText) paragraphs[0].textContent = subText;
+                  let paragraphs = doc.querySelectorAll('p');
+                  let subText = c.subtitle || c.text;
+                  if (paragraphs.length > 0 && subText) paragraphs[0].textContent = subText;
 
-                let links = doc.querySelectorAll('a, button');
-                if (links.length > 0 && c.button) links[0].textContent = c.button;
-                if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
+                  let links = doc.querySelectorAll('a, button');
+                  if (links.length > 0 && c.button) links[0].textContent = c.button;
+                  if (links.length > 0 && c.href) links[0].setAttribute('href', c.href);
 
-                let images = doc.querySelectorAll('img');
-                if (images.length > 0 && c.alt) images[0].setAttribute('alt', c.alt);
+                  let images = doc.querySelectorAll('img');
+                  if (images.length > 0 && c.alt) images[0].setAttribute('alt', c.alt);
 
-                blockContent = doc.body.innerHTML;
+                  blockContent = doc.body.innerHTML;
+                }
               }
+              html += blockContent + "\n";
             }
-            html += blockContent + "\n";
           }
         }
         html += `</body>\n</html>`;
@@ -522,8 +527,6 @@ async function executePlan(plan) {
 
 function formatStyledResponse(text) {
   let cleaned = text.replace(/```json|```/g, "").trim();
-  
-  // Transformeer genummerde suggesties (bijv. "1. **Titel**") naar mooie styled blokjes
   let lines = cleaned.split("\n");
   let htmlOutput = `<div class="space-y-3"><p class="text-neutral-200">${lines[0]}</p>`;
   
@@ -534,12 +537,11 @@ function formatStyledResponse(text) {
     let line = lines[i].trim();
     if (!line) continue;
     
-    // Check of het een optie/nummer is zoals "1. Tekst"
     let match = line.match(/^(\d+[\.\)]|\-)\s*(.*)/);
     if (match) {
       hasOptions = true;
       let optNum = match[1].replace(/[\.\)]/, "");
-      let optText = match[2].replace(/\*\*/g, ""); // Verwijder bold asterisks voor netheid
+      let optText = match[2].replace(/\*\*/g, "");
       optionsHtml += `
         <div onclick="selectSuggestion('${optNum}')" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-600 p-2.5 rounded cursor-pointer transition-all flex items-center gap-3">
           <span class="bg-neutral-800 text-neutral-300 w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium">${optNum}</span>
@@ -594,14 +596,23 @@ async function processCommand(userText) {
 
           let detailsHtml = `
             <div class="space-y-2">
-              <p class="font-medium text-white">📋 Plan: ${plan.plan} (<span class="text-blue-400">${fileName}</span>)</p>
-              <div class="text-xs text-neutral-400 bg-neutral-900 p-2.5 rounded border border-neutral-800 space-y-1.5">
+              <p class="font-medium text-white">📋 Plan: ${plan.plan}</p>
+              <div class="text-xs text-neutral-400 bg-neutral-900 p-3 rounded border border-neutral-800 space-y-2">
           `;
 
           if (actionItem.type === "create_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken</p>`;
+            detailsHtml += `<p><strong>Actie:</strong> Nieuwe pagina aanmaken (<span class="text-blue-400">${fileName}.html</span>)</p>`;
+            if (actionItem.blocks && actionItem.blocks.length > 0) {
+              detailsHtml += `<div><strong>Geselecteerde blocks:</strong> <ul class="list-disc list-inside mt-1 text-neutral-300">`;
+              for (let b of actionItem.blocks) {
+                detailsHtml += `<li>${b}</li>`;
+              }
+              detailsHtml += `</ul></div>`;
+            } else {
+              detailsHtml += `<p><strong>Blocks:</strong> Geen (lege pagina)</p>`;
+            }
           } else if (actionItem.type === "update_page") {
-            detailsHtml += `<p><strong>Actie:</strong> Bestaande pagina aanpassen</p>`;
+            detailsHtml += `<p><strong>Actie:</strong> Bestaande pagina aanpassen (<span class="text-blue-400">${fileName}.html</span>)</p>`;
             if (actionItem.old_text && actionItem.new_text) {
               detailsHtml += `<p><strong>Vervangen:</strong> <span class="text-red-400 line-through">${actionItem.old_text}</span> ➔ <span class="text-green-400 font-medium">${actionItem.new_text}</span></p>`;
             } else if (actionItem.new_text) {
@@ -611,7 +622,7 @@ async function processCommand(userText) {
 
           detailsHtml += `
               </div>
-              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om goed te keuren of <strong>'nee'</strong> / geef een alternatief op om aan te passen.</p>
+              <p class="text-xs text-neutral-300 pt-1">Zeg <strong>'ja'</strong> om goed te keuren of geef aan wat er gewijzigd moet worden.</p>
             </div>
           `;
 
@@ -654,7 +665,6 @@ async function sendMessage(event) {
     pendingPlan = null;
     await executePlan(p);
   } else if ((text.toLowerCase() === "nee" || text.toLowerCase().includes("andere") || /^\d+$/.test(text)) && pendingPlan && text.toLowerCase() !== "ja") {
-    // Als er een pending plan is en de gebruiker kiest een optienummer of zegt 'andere', reset plan en laat AI verwerken
     pendingPlan = null;
     await processCommand(text);
   } else if (pendingPlan && text.toLowerCase() !== "ja") {
