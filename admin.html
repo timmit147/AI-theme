@@ -14,36 +14,55 @@
     <p class="text-xs text-neutral-500 mt-1">Website Generator</p>
   </div>
   <button onclick="toggleSettings()" class="bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-    Settings
+    Instellingen
   </button>
 </header>
 
-<main id="chat" class="flex-1 overflow-y-auto p-6 space-y-4">
-  <div class="flex items-center justify-center h-full">
-    <div class="text-center">
-      <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
-      <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
+<!-- MAIN CONTENT: Chat + Preview -->
+<div class="flex-1 overflow-hidden flex gap-4 p-4">
+  <!-- CHAT SECTION (Left) -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <main id="chat" class="flex-1 overflow-y-auto space-y-4 pb-4 pr-2">
+      <div class="flex items-center justify-center h-full">
+        <div class="text-center">
+          <h2 class="text-xl font-light text-white mb-2">AI Website Builder</h2>
+          <p class="text-sm text-neutral-500">Geef opdrachten aan de AI</p>
+        </div>
+      </div>
+    </main>
+
+    <form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-4 py-3 flex gap-3 flex-shrink-0">
+      <input
+        id="user-input"
+        type="text"
+        class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
+        placeholder="Geef opdracht..."
+        autocomplete="off"
+      >
+      <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
+        Verzenden
+      </button>
+    </form>
+  </div>
+
+  <!-- PREVIEW SECTION (Right) -->
+  <div class="w-96 bg-neutral-900 border border-neutral-800 rounded-lg flex flex-col overflow-hidden">
+    <div class="border-b border-neutral-800 px-4 py-3">
+      <p class="text-xs text-neutral-500 font-medium">LIVE PREVIEW</p>
+      <p id="preview-title" class="text-sm font-light text-white mt-1">Kies een pagina</p>
+    </div>
+    <div id="preview-container" class="flex-1 overflow-auto bg-neutral-950">
+      <div class="p-4 text-center text-neutral-600 text-sm">
+        <p>Hier zie je de wijzigingen live</p>
+      </div>
     </div>
   </div>
-</main>
-
-<form onsubmit="sendMessage(event)" class="bg-neutral-900 border-t border-neutral-800 px-6 py-4 flex gap-3">
-  <input
-    id="user-input"
-    type="text"
-    class="flex-1 bg-neutral-950 border border-neutral-800 rounded px-4 py-3 text-sm outline-none focus:border-neutral-700 transition-colors"
-    placeholder="Geef opdracht..."
-    autocomplete="off"
-  >
-  <button type="submit" class="bg-neutral-800 hover:bg-neutral-700 px-6 rounded font-light text-sm transition-colors">
-    Send
-  </button>
-</form>
+</div>
 
 <!-- SETTINGS MODAL -->
 <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
   <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-sm space-y-4 max-h-[90vh] overflow-y-auto">
-    <h2 class="font-light text-lg">Settings</h2>
+    <h2 class="font-light text-lg">Instellingen</h2>
 
     <div>
       <label class="text-xs text-neutral-500 block mb-1">AI API Key (Gemini of OpenAI)</label>
@@ -67,7 +86,7 @@
     </div>
 
     <button onclick="testAPI()" class="w-full bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light transition-colors">
-      Test Connecties
+      Verbindingen testen
     </button>
     
     <div id="api-status" class="hidden text-xs space-y-2 mt-2 p-3 bg-neutral-950 border border-neutral-800 rounded">
@@ -75,10 +94,56 @@
 
     <div class="flex justify-end gap-2 pt-4">
       <button onclick="toggleSettings()" type="button" class="px-4 py-2 bg-neutral-800 rounded text-sm font-light hover:bg-neutral-700 transition-colors">
-        Close
+        Sluiten
       </button>
       <button onclick="saveSettings()" type="button" class="px-4 py-2 bg-white text-black rounded text-sm font-medium hover:bg-neutral-200 transition-colors">
-        Save
+        Opslaan
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ACTION PROGRESS MODAL -->
+<div id="action-progress-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 w-full max-w-md space-y-4">
+    <h2 class="font-light text-lg">Pagina aanpassen</h2>
+    
+    <div id="progress-content" class="space-y-4">
+      <div class="bg-neutral-950 border border-neutral-800 rounded p-4 space-y-3">
+        <div>
+          <p class="text-xs text-neutral-500 mb-1">Pagina:</p>
+          <p id="progress-page" class="text-sm font-medium text-white">-</p>
+        </div>
+        <div>
+          <p class="text-xs text-neutral-500 mb-1">Dit wordt aangepast:</p>
+          <div id="progress-changes" class="text-sm space-y-2 bg-neutral-900 p-3 rounded border border-neutral-800">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 p-3 bg-neutral-950 rounded border border-neutral-800">
+        <div id="progress-spinner" class="w-4 h-4 border-2 border-neutral-700 border-t-white rounded-full animate-spin"></div>
+        <div>
+          <p class="text-xs text-neutral-500">Status:</p>
+          <p id="progress-status" class="text-sm font-light text-white">Bezig met aanpassen...</p>
+        </div>
+      </div>
+
+      <div id="progress-timer" class="text-xs text-center text-neutral-500">
+        <span id="timer">0</span>s
+      </div>
+    </div>
+
+    <div id="progress-result" class="hidden space-y-3">
+      <div class="bg-green-950/30 border border-green-900/50 rounded p-3">
+        <p class="text-sm text-green-200 font-medium">✓ Klaar!</p>
+        <p id="result-message" class="text-xs text-green-200 mt-1 opacity-90">Wijzigingen zijn opgeslagen</p>
+      </div>
+      <a id="result-link" href="#" target="_blank" class="block text-center bg-neutral-800 hover:bg-neutral-700 px-4 py-2 rounded text-sm font-light text-white transition-colors">
+        Pagina bekijken →
+      </a>
+      <button onclick="closeProgressModal()" class="w-full bg-neutral-700 hover:bg-neutral-600 px-4 py-2 rounded text-sm font-light transition-colors">
+        Sluiten
       </button>
     </div>
   </div>
@@ -95,8 +160,11 @@ let config = JSON.parse(localStorage.getItem("ai_theme_config")) || {
 
 let availableBlocks = [];
 let pendingPlan = null;
+let actionTimer = null;
 
 const commonBlocks = ["hero.html", "text-media.html", "media-text.html", "services.html", "contact.html", "footer.html", "header.html", "gallery.html", "testimonials.html", "pricing.html"];
+
+const githubRawUrl = (path) => `https://raw.githubusercontent.com/${config.githubUser}/${config.repo}/main/${path}`;
 
 window.onload = async function() {
   document.getElementById("ai-key").value = config.aiKey;
@@ -173,9 +241,9 @@ async function testAPI() {
     try {
       const bestModel = await getBestGeminiModel(aiKey);
       config.activeModelName = bestModel;
-      geminiMsg = `✓ Succes! Gekoppeld aan model: ${bestModel}`;
+      geminiMsg = `✓ Succes! Model: ${bestModel}`;
     } catch (e) {
-      geminiMsg = "✗ Fout bij testen: " + e.message;
+      geminiMsg = "✗ Fout: " + e.message;
     }
     renderStatus();
   }
@@ -189,7 +257,7 @@ async function testAPI() {
         body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: "test" }], max_tokens: 5 })
       });
       if (response.ok) openaiMsg = "✓ Succes!";
-      else openaiMsg = "✗ Fout bij OpenAI";
+      else openaiMsg = "✗ Fout";
     } catch (e) {
       openaiMsg = "✗ Netwerkfout";
     }
@@ -202,7 +270,7 @@ async function testAPI() {
         headers: { "Authorization": `Bearer ${githubToken}`, "Accept": "application/vnd.github+json" }
       });
       if (response.ok) githubMsg = "✓ Succes!";
-      else githubMsg = "✗ Fout bij GitHub";
+      else githubMsg = "✗ Fout";
     } catch (e) {
       githubMsg = "✗ Netwerkfout";
     }
@@ -245,7 +313,7 @@ function saveSettings() {
   config.repo = document.getElementById("github-repo").value.trim();
   localStorage.setItem("ai_theme_config", JSON.stringify(config));
   toggleSettings();
-  addMessage("ai", "Settings opgeslagen.");
+  addMessage("ai", "Instellingen opgeslagen.");
 }
 
 function addMessage(role, text, type = "text") {
@@ -347,7 +415,7 @@ ALS VRAAG/FOUT -> Normaal Nederlands antwoord (geen JSON)`;
   let isGemini = key.startsWith("AIza") || key.startsWith("AQ.");
   let isOpenAI = key.startsWith("sk-");
 
-  if (!key) throw new Error("Vul eerst een API key in via Settings.");
+  if (!key) throw new Error("Vul eerst een API key in via Instellingen.");
 
   if (isGemini) {
     let modelToUse = config.activeModelName;
@@ -387,6 +455,67 @@ ALS VRAAG/FOUT -> Normaal Nederlands antwoord (geen JSON)`;
   }
 }
 
+function showProgressModal(action) {
+  document.getElementById("action-progress-modal").classList.remove("hidden");
+  document.getElementById("progress-result").classList.add("hidden");
+  document.getElementById("progress-content").classList.remove("hidden");
+  
+  let pageName = action.file.replace('.html', '').toUpperCase();
+  document.getElementById("progress-page").textContent = action.file;
+  
+  let changesHtml = '';
+  if (action.type === "replace_text") {
+    changesHtml = `
+      <div class="border-b border-neutral-700 pb-2 mb-2">
+        <p class="text-xs text-neutral-400 mb-1">Van:</p>
+        <p class="text-xs bg-red-950/30 text-red-200 p-2 rounded">"${action.find.substring(0, 60)}${action.find.length > 60 ? '...' : ''}"</p>
+      </div>
+      <div>
+        <p class="text-xs text-neutral-400 mb-1">Naar:</p>
+        <p class="text-xs bg-green-950/30 text-green-200 p-2 rounded">"${action.replace.substring(0, 60)}${action.replace.length > 60 ? '...' : ''}"</p>
+      </div>
+    `;
+  } else if (action.type === "create_page") {
+    changesHtml = `<p class="text-xs text-neutral-300">Nieuwe pagina met ${action.blocks.length} onderdeel${action.blocks.length > 1 ? 'en' : ''}</p>`;
+  }
+  
+  document.getElementById("progress-changes").innerHTML = changesHtml;
+  
+  let seconds = 0;
+  document.getElementById("timer").textContent = "0";
+  
+  if (actionTimer) clearInterval(actionTimer);
+  actionTimer = setInterval(() => {
+    seconds++;
+    document.getElementById("timer").textContent = seconds;
+  }, 1000);
+}
+
+function closeProgressModal() {
+  document.getElementById("action-progress-modal").classList.add("hidden");
+  if (actionTimer) clearInterval(actionTimer);
+}
+
+function finishProgress(action) {
+  if (actionTimer) clearInterval(actionTimer);
+  
+  document.getElementById("progress-content").classList.add("hidden");
+  document.getElementById("progress-result").classList.remove("hidden");
+  
+  let resultMsg = 'Wijzigingen zijn opgeslagen';
+  if (action.type === "replace_text") {
+    resultMsg = `Tekst is aangepast op pagina ${action.file}`;
+  } else if (action.type === "create_page") {
+    resultMsg = `Nieuwe pagina aangemaakt: ${action.file}`;
+  }
+  
+  document.getElementById("result-message").textContent = resultMsg;
+  
+  let pageUrl = githubRawUrl(action.file);
+  document.getElementById("result-link").href = pageUrl;
+  document.getElementById("result-link").textContent = `Pagina bekijken → ${action.file}`;
+}
+
 async function executePlan(plan) {
   try {
     if (!plan.actions || plan.actions.length === 0) {
@@ -395,6 +524,8 @@ async function executePlan(plan) {
     }
 
     for (let action of plan.actions) {
+      showProgressModal(action);
+
       if (action.type === "create_page") {
         let html = `<!DOCTYPE html>\n<html lang="nl">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${action.file}</title>\n<script src="https://cdn.tailwindcss.com"><\/script>\n</head>\n<body>\n`;
 
@@ -407,6 +538,7 @@ async function executePlan(plan) {
 
         html += `</body>\n</html>`;
         await githubSaveFile(action.file, html, action.description);
+        finishProgress(action);
         addMessage("ai", "✓ " + action.description);
       }
       
@@ -414,11 +546,14 @@ async function executePlan(plan) {
         let file = await githubGetFile(action.file);
         let updated = file.content.replace(new RegExp(action.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), action.replace);
         await githubSaveFile(action.file, updated, action.description);
+        finishProgress(action);
         addMessage("ai", "✓ " + action.description);
       }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-    addMessage("ai", "Klaar!");
   } catch (error) {
+    closeProgressModal();
     addMessage("ai", error.message, "error");
   }
 }
@@ -426,11 +561,11 @@ async function executePlan(plan) {
 async function processCommand(userText) {
   try {
     if (!config.aiKey) {
-      addMessage("ai", "Stel eerst een API key in via Settings", "error");
+      addMessage("ai", "Stel eerst een API key in via Instellingen", "error");
       return;
     }
 
-    addMessage("ai", "Denken...");
+    addMessage("ai", "Even denken...");
     let aiResponse = await askAI(userText);
     
     let chat = document.getElementById("chat");
@@ -459,7 +594,7 @@ async function processCommand(userText) {
     }
   } catch (error) {
     let chat = document.getElementById("chat");
-    if(chat.lastChild && chat.lastChild.innerText.includes("Denken")) {
+    if(chat.lastChild && chat.lastChild.innerText.includes("Even denken")) {
        chat.lastChild.remove();
     }
     addMessage("ai", error.message, "error");
